@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import supabase from '../database/supabase-client';
 
 const LeaveForm = ({ isOpen, onClose, employees, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -20,48 +21,38 @@ const LeaveForm = ({ isOpen, onClose, employees, onSuccess }) => {
 
     try {
       // Check if leave already exists for this period
-      const checkResult = await window.mcp_supabase_execute_sql({
-        project_id: "zfkdqglvibuxgjexkall",
-        query: `
-          SELECT id FROM leaves 
-          WHERE employee_id = ${formData.employee_id}
-          AND (
-            (start_date BETWEEN '${formData.start_date}' AND '${formData.end_date}')
-            OR (end_date BETWEEN '${formData.start_date}' AND '${formData.end_date}')
-            OR (start_date <= '${formData.start_date}' AND end_date >= '${formData.end_date}')
-          )
-          LIMIT 1;
-        `
-      });
+      const { data: existingLeaves, error: checkError } = await supabase
+        .from('leaves')
+        .select('id')
+        .eq('employee_id', formData.employee_id)
+        .or(`start_date.gte.${formData.start_date},end_date.lte.${formData.end_date}`)
+        .limit(1);
 
-      if (checkResult?.data?.length > 0) {
+      if (checkError) throw checkError;
+
+      if (existingLeaves?.length > 0) {
         setError('Leave already exists for this period');
+        setLoading(false);
         return;
       }
 
       // Insert new leave request
-      const result = await window.mcp_supabase_execute_sql({
-        project_id: "zfkdqglvibuxgjexkall",
-        query: `
-          INSERT INTO leaves (
-            employee_id,
-            start_date,
-            end_date,
-            reason,
-            type,
-            status
-          ) VALUES (
-            ${formData.employee_id},
-            '${formData.start_date}',
-            '${formData.end_date}',
-            '${formData.reason}',
-            '${formData.type}',
-            '${formData.status}'
-          ) RETURNING id;
-        `
-      });
+      const { data, error: insertError } = await supabase
+        .from('leaves')
+        .insert([{
+          employee_id: formData.employee_id,
+          start_date: formData.start_date,
+          end_date: formData.end_date,
+          reason: formData.reason,
+          type: formData.type,
+          status: formData.status
+        }])
+        .select('id')
+        .single();
 
-      if (result?.data?.[0]?.id) {
+      if (insertError) throw insertError;
+
+      if (data?.id) {
         onClose();
         if (onSuccess) {
           onSuccess();
@@ -74,8 +65,6 @@ const LeaveForm = ({ isOpen, onClose, employees, onSuccess }) => {
           type: 'vacation',
           status: 'Pending'
         });
-      } else {
-        setError('Failed to submit leave request. Please try again.');
       }
     } catch (err) {
       console.error('Error submitting leave request:', err);
@@ -232,4 +221,4 @@ const LeaveForm = ({ isOpen, onClose, employees, onSuccess }) => {
   );
 };
 
-export default LeaveForm; 
+export default LeaveForm;

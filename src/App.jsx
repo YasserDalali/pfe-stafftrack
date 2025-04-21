@@ -3,20 +3,15 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import AttendancePage from './pages/AttendancePage';
 import EmployeePage from './pages/EmployeePage';
 import FaceDetection from './pages/faceDetection';
-import Sidebar from './components/SideBar';
 import LeaveManagementPage from './pages/LeaveManagementPage';
 import ProfilePage from './pages/ProfilePage';
 import DashboardPage from './pages/DashboardPage';
-import Navbar from './components/Navbar';
 import SettingsPage from './pages/SettingsPage';
-import { Provider } from 'react-redux';
-import store from './context/store';
 import LandingPage from './pages/landingPage/LandingPage';
 import AdminApp from './AdminApp';
 
 const App = () => {
   return (
-    <Provider store={store}>
       <Router>
         <Routes>
           <Route path="*" element={<LandingPage />} />
@@ -30,7 +25,6 @@ const App = () => {
           <Route path="/admin/settings" element={<AdminApp><SettingsPage /></AdminApp>} />
         </Routes>
       </Router>
-    </Provider>
   );
 };
 

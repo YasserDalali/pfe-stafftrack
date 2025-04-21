@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { useSelector } from 'react-redux';
-import { motion } from 'framer-motion';
+
 import AnimatedComponent from '../components/AnimatedComponent';
 import LeaveManagementTable from '../components/LeaveManagementTable';
 import LeaveCalendar from '../components/LeaveCalendar';

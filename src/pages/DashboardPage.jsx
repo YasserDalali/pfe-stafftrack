@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
 import ReactApexChart from 'react-apexcharts';
 import { motion } from 'framer-motion';
 import AnimatedComponent from '../components/AnimatedComponent';
@@ -16,8 +15,8 @@ const DashboardPage = () => {
   const [reportData, setReportData] = useState(null);
   const [reportsLeft, setReportsLeft] = useState(MAX_DAILY_REPORTS);
   const [isCachedData, setIsCachedData] = useState(false);
-  const attendance = useSelector((state) => state.attendance);
-  const employees = useSelector((state) => state.employees);
+  const attendance = [];
+  const employees = [];
 
   useEffect(() => {
     // Load and check reports usage
@@ -79,15 +78,15 @@ const DashboardPage = () => {
   };
 
   // Calculate attendance statistics
-  const totalPresent = attendance.filter(record => record.status === "Present").length;
-  const totalAbsent = attendance.filter(record => record.status === "Absent").length;
-  const totalLate = attendance.filter(record => record.lateness).length;
+  const totalPresent = attendance.filter(record => record?.status === "Present").length;
+  const totalAbsent = attendance.filter(record => record?.status === "Absent").length;
+  const totalLate = attendance.filter(record => record?.lateness).length;
 
   // Calculate average lateness in minutes
   const averageLateness = attendance
-    .filter(record => record.lateness)
+    .filter(record => record?.lateness)
     .reduce((acc, record) => {
-      const [minutes] = record.lateness.split(':').map(Number);
+      const [minutes] = record?.lateness.split(':').map(Number);
       return acc + minutes;
     }, 0) / totalLate || 0;
 

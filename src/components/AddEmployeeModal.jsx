@@ -318,6 +318,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
                       <img
                         src={URL.createObjectURL(avatar)}
                         alt="Preview"
+                        
                         className="w-full h-auto rounded-lg"
                       />
                     </div>
