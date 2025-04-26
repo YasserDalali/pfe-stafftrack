@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import supabase from '../database/supabase-client';
 
 const AttendanceForm = ({ isOpen, onClose, employees }) => {
   const [formData, setFormData] = useState({
@@ -22,21 +23,19 @@ const AttendanceForm = ({ isOpen, onClose, employees }) => {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      const checkQuery = `
-        SELECT id FROM attendance 
-        WHERE employee_id = ${formData.employee_id}
-        AND checkdate >= '${today.toISOString()}'
-        AND checkdate < '${tomorrow.toISOString()}'
-        LIMIT 1;
-      `;
+      // Use Supabase to check for existing attendance
+      const { data: existing, error: checkError } = await supabase
+        .from('attendance')
+        .select('id')
+        .eq('employee_id', formData.employee_id)
+        .gte('checkdate', today.toISOString())
+        .lt('checkdate', tomorrow.toISOString())
+        .limit(1);
 
-      const checkResult = await mcp_supabase_execute_sql({
-        project_id: "zfkdqglvibuxgjexkall",
-        query: checkQuery
-      });
-
-      if (checkResult?.data?.length > 0) {
+      if (checkError) throw checkError;
+      if (existing && existing.length > 0) {
         setError('Attendance already recorded for this employee today');
+        setLoading(false);
         return;
       }
 
@@ -44,34 +43,24 @@ const AttendanceForm = ({ isOpen, onClose, employees }) => {
       const checkTime = new Date(formData.checkdate);
       const startTime = new Date(checkTime);
       startTime.setHours(9, 0, 0, 0); // Assuming work starts at 9 AM
-
-      const lateness = checkTime > startTime ? 
-        Math.floor((checkTime - startTime) / (1000 * 60)) : 
-        0;
-
-      const status = lateness > 0 ? 'late' : 'on_time';
-
+      const lateness = checkTime > startTime ? Math.floor((checkTime - startTime) / (1000 * 60)) : 0;
+      // Use 'present' if on time, 'absent' if late (schema only allows these two)
+      const status = lateness > 0 ? 'absent' : 'present';
       // Insert new attendance record
-      const insertQuery = `
-        INSERT INTO attendance (
-          employee_id,
-          checkdate,
-          status,
-          lateness
-        ) VALUES (
-          ${formData.employee_id},
-          '${formData.checkdate}',
-          '${status}',
-          ${lateness > 0 ? `'${lateness} minutes'` : 'NULL'}
-        ) RETURNING id;
-      `;
+      const { data: insertData, error: insertError } = await supabase
+        .from('attendance')
+        .insert([
+          {
+            employee_id: formData.employee_id,
+            checkdate: formData.checkdate,
+            status,
+            lateness: lateness > 0 ? `${lateness} minutes` : null
+          }
+        ])
+        .select('id');
 
-      const result = await mcp_supabase_execute_sql({
-        project_id: "zfkdqglvibuxgjexkall",
-        query: insertQuery
-      });
-
-      if (result?.data?.[0]?.id) {
+      if (insertError) throw insertError;
+      if (insertData && insertData[0]?.id) {
         onClose();
         setFormData({
           employee_id: '',
