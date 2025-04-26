@@ -5,6 +5,17 @@ import AnimatedComponent from '../components/AnimatedComponent';
 import AIReportModal from '../components/AIReportModal';
 import AIReportConfirmModal from '../components/AIReportConfirmModal';
 import { generateAIReport } from '../utils/ReportAIAnalyse';
+import AttendanceRateOverTime from '../charts/AttendanceRateOverTime';
+import AverageLatenessOverTime from '../charts/AverageLatenessOverTime';
+import EmployeeSatisfactionByDepartement from '../charts/EmployeeSatisfactionByDepartement';
+import LeaveRequestsByStatus from '../charts/LeaveRequestsByStatus';
+import TopAbsentees from '../charts/TopAbsentees';
+import WeeklyWorkHoursVsSalary from '../charts/WeeklyWorkHoursVsSalary';
+import LeavesTakenByType from '../charts/LeavesTakenByType';
+import NewHiresOverTime from '../charts/NewHiresOverTime';
+import LeaveBalanceDistribution from '../charts/LeaveBalanceDistribution';
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
+import  supabase  from '../database/supabase-client';
 
 const MAX_DAILY_REPORTS = 10;
 const REPORTS_STORAGE_KEY = 'ai_reports_usage';
@@ -15,8 +26,9 @@ const DashboardPage = () => {
   const [reportData, setReportData] = useState(null);
   const [reportsLeft, setReportsLeft] = useState(MAX_DAILY_REPORTS);
   const [isCachedData, setIsCachedData] = useState(false);
-  const attendance = [];
-  const employees = [];
+  const [attendance, setAttendance] = useState([]);
+  const [period, setPeriod] = useState('week');
+  const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
     // Load and check reports usage
@@ -77,116 +89,47 @@ const DashboardPage = () => {
     }
   };
 
-  // Calculate attendance statistics
-  const totalPresent = attendance.filter(record => record?.status === "Present").length;
-  const totalAbsent = attendance.filter(record => record?.status === "Absent").length;
-  const totalLate = attendance.filter(record => record?.lateness).length;
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      setLoadingStats(true);
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('id, employee_id, status, checkdate, lateness');
+      if (!error) setAttendance(data || []);
+      setLoadingStats(false);
+    };
+    fetchAttendance();
+  }, []);
 
-  // Calculate average lateness in minutes
-  const averageLateness = attendance
-    .filter(record => record?.lateness)
+  // Date range calculation
+  const now = new Date();
+  let range = { start: null, end: null };
+  if (period === 'week') {
+    range = { start: startOfWeek(now), end: endOfWeek(now) };
+  } else if (period === 'month') {
+    range = { start: startOfMonth(now), end: endOfMonth(now) };
+  } else if (period === 'year') {
+    range = { start: startOfYear(now), end: endOfYear(now) };
+  }
+
+  // Filtered attendance for the selected period
+  const filteredAttendance = attendance.filter(record => {
+    const date = typeof record.checkdate === 'string' ? parseISO(record.checkdate) : new Date(record.checkdate);
+    return isWithinInterval(date, { start: range.start, end: range.end });
+  });
+
+  // Calculate stats
+  const totalPresent = filteredAttendance.filter(record => record.status === 'present').length;
+  const totalAbsent = filteredAttendance.filter(record => record.status === 'absent').length;
+  const totalLate = filteredAttendance.filter(record => record.lateness).length;
+  const averageLateness = filteredAttendance
+    .filter(record => record.lateness)
     .reduce((acc, record) => {
-      const [minutes] = record?.lateness.split(':').map(Number);
-      return acc + minutes;
-    }, 0) / totalLate || 0;
+      const [minutes] = String(record.lateness).split(':').map(Number);
+      return acc + (minutes || 0);
+    }, 0) / (totalLate || 1);
 
-  // Attendance trend chart options
-  const attendanceChartOptions = {
-    chart: {
-      type: 'area',
-      height: 350,
-      toolbar: {
-        show: false
-      }
-    },
-    colors: ['#3b82f6', '#9333ea'],
-    dataLabels: {
-      enabled: false
-    },
-    stroke: {
-      curve: 'smooth',
-      width: 3
-    },
-    xaxis: {
-      categories: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
-      axisBorder: {
-        show: false
-      }
-    },
-    grid: {
-      show: true,
-      strokeDashArray: 5,
-      borderColor: '#e5e7eb'
-    },
-    legend: {
-      show: false
-    },
-    yaxis: {
-      labels: {
-        formatter: function (value) {
-          return value + '%';
-        }
-      }
-    },
-    fill: {
-      type: 'gradient',
-      gradient: {
-        shadeIntensity: 1,
-        opacityFrom: 0.4,
-        opacityTo: 0.2,
-        stops: [0, 100]
-      }
-    }
-  };
 
-  const attendanceChartSeries = [
-    {
-      name: 'Present',
-      data: [90, 85, 92, 88, 94]
-    },
-    {
-      name: 'Late',
-      data: [10, 15, 8, 12, 6]
-    }
-  ];
-
-  // Lateness by time slot chart
-  const latenessTimeChartOptions = {
-    chart: {
-      type: 'bar',
-      height: 350,
-      toolbar: {
-        show: false
-      }
-    },
-    colors: ['#f59e0b'],
-    plotOptions: {
-      bar: {
-        borderRadius: 4,
-        horizontal: true,
-      }
-    },
-    dataLabels: {
-      enabled: false
-    },
-    xaxis: {
-      categories: ['8:00-8:15', '8:16-8:30', '8:31-8:45', '8:46-9:00', 'After 9:00'],
-      labels: {
-        formatter: function (value) {
-          return value + ' min';
-        }
-      }
-    },
-    grid: {
-      strokeDashArray: 5,
-      borderColor: '#e5e7eb'
-    }
-  };
-
-  const latenessTimeChartSeries = [{
-    name: 'Late Arrivals',
-    data: [12, 8, 5, 7, 3]
-  }];
 
   return (
     <motion.div
@@ -232,6 +175,18 @@ const DashboardPage = () => {
             </p>
           </div>
         </AnimatedComponent>
+      {/* Stats Cards Toggle */}
+      <div className="flex gap-2 mb-4">
+        {['week', 'month', 'year'].map((p) => (
+          <button
+            key={p}
+            onClick={() => setPeriod(p)}
+            className={`px-4 py-2 rounded-lg font-medium border transition-colors ${period === p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-neutral-700'}`}
+          >
+            {p.charAt(0).toUpperCase() + p.slice(1)}
+          </button>
+        ))}
+      </div>
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <AnimatedComponent delay={0.1}>
@@ -240,10 +195,10 @@ const DashboardPage = () => {
               Attendance Rate
             </h3>
             <p className="text-3xl font-bold text-gray-800 dark:text-white">
-              {Math.round((totalPresent / attendance.length) * 100)}%
+              {filteredAttendance.length ? Math.round((totalPresent / filteredAttendance.length) * 100) : 0}%
             </p>
             <p className="text-sm text-gray-500 dark:text-neutral-400 mt-2">
-              {totalPresent} out of {attendance.length}
+              {totalPresent} out of {filteredAttendance.length}
             </p>
           </div>
         </AnimatedComponent>
@@ -262,80 +217,21 @@ const DashboardPage = () => {
           </div>
         </AnimatedComponent>
 
-{/*         <AnimatedComponent delay={0.3}>
-          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-gray-500 dark:text-neutral-400 text-sm font-medium">
-              On-Time Rate
-            </h3>
-            <p className="text-3xl font-bold text-green-600">
-              {Math.round(((totalPresent - totalLate) / totalPresent) * 100)}%
-            </p>
-            <p className="text-sm text-gray-500 dark:text-neutral-400 mt-2">
-              Of present employees
-            </p>
-          </div>
-        </AnimatedComponent> */}
-
         <AnimatedComponent delay={0.3}>
           <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-lg p-6">
             <h3 className="text-gray-500 dark:text-neutral-400 text-sm font-medium">
-              Absent Today
+              Absent ({period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : 'This Year'})
             </h3>
             <p className="text-3xl font-bold text-red-600">
               {totalAbsent}
             </p>
             <p className="text-sm text-gray-500 dark:text-neutral-400 mt-2">
-              {Math.round((totalAbsent / attendance.length) * 100)}% of workforce
+              {filteredAttendance.length ? Math.round((totalAbsent / filteredAttendance.length) * 100) : 0}% of period
             </p>
           </div>
         </AnimatedComponent>
-
       </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AnimatedComponent delay={0.4}>
-          {/* Attendance Trend Chart */}
-          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-lg p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                Weekly Attendance Trend
-              </h3>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center">
-                  <span className="w-3 h-3 rounded-sm bg-blue-600 mr-2"></span>
-                  <span className="text-sm text-gray-600 dark:text-neutral-400">Present</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="w-3 h-3 rounded-sm bg-purple-600 mr-2"></span>
-                  <span className="text-sm text-gray-600 dark:text-neutral-400">Late</span>
-                </div>
-              </div>
-            </div>
-            <ReactApexChart
-              options={attendanceChartOptions}
-              series={attendanceChartSeries}
-              type="area"
-              height={350}
-            />
-          </div>
-        </AnimatedComponent>
-
-        <AnimatedComponent delay={0.5}>
-          {/* Lateness Distribution Chart */}
-          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
-              Lateness Distribution
-            </h3>
-            <ReactApexChart
-              options={latenessTimeChartOptions}
-              series={latenessTimeChartSeries}
-              type="bar"
-              height={350}
-            />
-          </div>
-        </AnimatedComponent>
-      </div>
 
       <AnimatedComponent delay={0.6}>
         {/* Recent Late Arrivals */}
@@ -362,7 +258,7 @@ const DashboardPage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-neutral-700">
-                {attendance
+                {filteredAttendance
                   .filter(record => record.lateness)
                   .slice(0, 5)
                   .map((record, index) => (
@@ -386,6 +282,46 @@ const DashboardPage = () => {
           </div>
         </div>
       </AnimatedComponent>
+
+      {/* Custom Chart Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10">
+        <div>
+          <h3 className="text-lg font-semibold mb-2">Attendance Rate Over Time</h3>
+          <AttendanceRateOverTime />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold mb-2">Average Lateness Over Time</h3>
+          <AverageLatenessOverTime />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold mb-2">Employee Satisfaction by Department</h3>
+          <EmployeeSatisfactionByDepartement />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold mb-2">Leave Requests by Status</h3>
+          <LeaveRequestsByStatus />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold mb-2">Top Absentees</h3>
+          <TopAbsentees />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold mb-2">Weekly Work Hours vs Salary</h3>
+          <WeeklyWorkHoursVsSalary />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold mb-2">Leaves Taken by Type</h3>
+          <LeavesTakenByType />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold mb-2">New Hires Over Time</h3>
+          <NewHiresOverTime />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold mb-2">Leave Balance Distribution</h3>
+          <LeaveBalanceDistribution />
+        </div>
+      </div>
 
       {/* Confirmation Modal */}
       <AIReportConfirmModal
