@@ -1,9 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import AnimatedComponent from '../components/AnimatedComponent';
 import AttendanceForm from '../components/AttendanceForm';
 import LeaveForm from '../components/LeaveForm';
 import { useFetchEmployees } from '../hooks/useFetchEmployees';
+import supabase from '../database/supabase-client';
+import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
+import { Search } from 'lucide-react';
+import AnimatedTableRow from '../components/AnimatedTableRow';
+
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }).format(date);
+};
 
 const AttendancePage = () => {
   const [isAttendanceFormOpen, setIsAttendanceFormOpen] = useState(false);
@@ -16,22 +28,20 @@ const AttendancePage = () => {
   const fetchAttendance = async () => {
     try {
       setLoading(true);
-      const result = await mcp_supabase_execute_sql({
-        project_id: "zfkdqglvibuxgjexkall",
-        query: `
-          SELECT 
-            a.*,
-            e.name as employee_name
-          FROM attendance a
-          JOIN employees e ON a.employee_id = e.id
-          ORDER BY a.checkdate DESC
-          LIMIT 100;
-        `
-      });
+      // Fetch attendance with employee name using Supabase join
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('*, employees(name)')
+        .order('checkdate', { ascending: false })
+        .limit(100);
 
-      if (result?.data) {
-        setAttendanceRecords(result.data);
-      }
+      if (error) throw error;
+      // Map to add employee_name for compatibility with the rest of the code
+      const mapped = (data || []).map(row => ({
+        ...row,
+        employee_name: row.employees?.name || ''
+      }));
+      setAttendanceRecords(mapped);
       setError(null);
     } catch (err) {
       console.error('Error fetching attendance:', err);
@@ -45,13 +55,68 @@ const AttendancePage = () => {
     fetchAttendance();
   }, []);
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    }).format(date);
-  };
+  const data = useMemo(() => attendanceRecords, [attendanceRecords]);
+  const columns = useMemo(
+    () => [
+      {
+        Header: 'Employee',
+        accessor: 'employee_name',
+      },
+      {
+        Header: 'Check-in Time',
+        accessor: 'checkdate',
+        Cell: ({ value }) => formatDate(value),
+      },
+      {
+        Header: 'Status',
+        accessor: 'status',
+        Cell: ({ value }) => (
+          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+            value === 'present'
+              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+              : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+          }`}>
+            {value === 'present' ? 'On Time' : 'Late'}
+          </span>
+        ),
+      },
+      {
+        Header: 'Lateness',
+        accessor: 'lateness',
+        Cell: ({ value }) => value || '-',
+      },
+    ],
+    []
+  );
+
+  const {
+    getTableProps,
+    getTableBodyProps,
+    headerGroups,
+    page,
+    prepareRow,
+    state: { pageIndex, pageSize, globalFilter },
+    setPageSize,
+    canNextPage,
+    canPreviousPage,
+    pageCount,
+    gotoPage,
+    nextPage,
+    previousPage,
+    setGlobalFilter,
+  } = useTable(
+    {
+      columns,
+      data,
+      initialState: {
+        pageIndex: 0,
+        pageSize: 10,
+      },
+    },
+    useGlobalFilter,
+    useSortBy,
+    usePagination
+  );
 
   if (loading || loadingEmployees) {
     return (
@@ -69,12 +134,7 @@ const AttendancePage = () => {
             Attendance Management
           </h1>
           <div className="flex space-x-3">
-            <button
-              onClick={() => setIsLeaveFormOpen(true)}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              Plan Leave
-            </button>
+           
             <button
               onClick={() => setIsAttendanceFormOpen(true)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -104,7 +164,7 @@ const AttendancePage = () => {
               On Time
             </h3>
             <p className="text-3xl font-bold text-green-600">
-              {attendanceRecords.filter(record => record.status === 'on_time').length}
+              {attendanceRecords.filter(record => record.status === 'present').length}
             </p>
           </div>
         </AnimatedComponent>
@@ -115,7 +175,7 @@ const AttendancePage = () => {
               Late
             </h3>
             <p className="text-3xl font-bold text-yellow-600">
-              {attendanceRecords.filter(record => record.status === 'late').length}
+              {attendanceRecords.filter(record => record.status === 'absent').length}
             </p>
           </div>
         </AnimatedComponent>
@@ -136,49 +196,125 @@ const AttendancePage = () => {
 
       {/* Attendance Table */}
       <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-neutral-700">
-            <thead className="bg-gray-50 dark:bg-neutral-900">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Employee
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Check-in Time
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Lateness
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-neutral-800 divide-y divide-gray-200 dark:divide-neutral-700">
-              {attendanceRecords.map((record) => (
-                <tr key={record.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {record.employee_name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {formatDate(record.checkdate)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      record.status === 'on_time'
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
-                    }`}>
-                      {record.status === 'on_time' ? 'On Time' : 'Late'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {record.lateness || '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="p-6">
+          {/* Search bar */}
+          <div className="mb-4">
+            <div className="relative">
+              <input
+                type="text"
+                value={globalFilter || ''}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                placeholder="Search records..."
+                className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-neutral-600 rounded-md dark:bg-neutral-700 dark:text-white"
+              />
+              <Search size={16} className="absolute left-3 top-3 text-gray-400" />
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-hidden border border-gray-200 dark:border-neutral-700 rounded-lg">
+            <table {...getTableProps()} className="min-w-full divide-y divide-gray-200 dark:divide-neutral-700">
+              <thead>
+                {headerGroups.map((headerGroup) => (
+                  <tr {...headerGroup.getHeaderGroupProps()}>
+                    {headerGroup.headers.map((column) => (
+                      <th
+                        {...column.getHeaderProps(column.getSortByToggleProps())}
+                        className="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase dark:text-neutral-500"
+                      >
+                        <div className="flex items-center gap-x-2">
+                          {column.render('Header')}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              <tbody {...getTableBodyProps()} className="divide-y divide-gray-200 dark:divide-neutral-700">
+                {page.map((row, index) => {
+                  prepareRow(row);
+                  return (
+                    <AnimatedTableRow key={row.id} index={index}>
+                      {row.cells.map((cell) => (
+                        <td
+                          {...cell.getCellProps()}
+                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-neutral-200"
+                        >
+                          {cell.render('Cell')}
+                        </td>
+                      ))}
+                    </AnimatedTableRow>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between py-3 mt-4">
+            <div className="flex items-center space-x-2">
+              <select
+                value={pageSize}
+                onChange={e => setPageSize(Number(e.target.value))}
+                className="px-3 py-1 border rounded-md dark:bg-neutral-700 dark:border-neutral-600 dark:text-white"
+              >
+                {[5, 10, 20].map(size => (
+                  <option key={size} value={size}>
+                    Show {size}
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-gray-500 dark:text-neutral-400">
+                Page {pageIndex + 1} of {pageCount}
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => previousPage()}
+                disabled={!canPreviousPage}
+                className="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-neutral-700 dark:border-neutral-600 dark:text-white transition-colors"
+              >
+                Previous
+              </button>
+
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, pageCount) }, (_, i) => {
+                  let pageNum;
+                  if (pageCount <= 5) {
+                    pageNum = i;
+                  } else if (pageIndex < 3) {
+                    pageNum = i;
+                  } else if (pageIndex > pageCount - 4) {
+                    pageNum = pageCount - 5 + i;
+                  } else {
+                    pageNum = pageIndex - 2 + i;
+                  }
+
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => gotoPage(pageNum)}
+                      className={`px-3 py-1 border rounded-md transition-colors ${pageIndex === pageNum
+                        ? 'bg-blue-500 text-white border-blue-500'
+                        : 'hover:bg-gray-50 dark:hover:bg-neutral-700 dark:border-neutral-600 dark:text-white'
+                        }`}
+                    >
+                      {pageNum + 1}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => nextPage()}
+                disabled={!canNextPage}
+                className="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-neutral-700 dark:border-neutral-600 dark:text-white transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

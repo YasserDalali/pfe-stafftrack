@@ -7,10 +7,33 @@ import AnimatedComponent from './AnimatedComponent';
 import AnimatedTableRow from './AnimatedTableRow';
 import ModalButton from './Modal';
 import ProfilePage from '../pages/ProfilePage';
+import supabase from '../database/supabase-client';
 
 const defaultAvatar = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
 
-const EmployeeTable = ({ employees }) => {
+const EmployeeTable = ({ employees, onDelete }) => {
+  const [deletingId, setDeletingId] = React.useState(null);
+  const [deleteError, setDeleteError] = React.useState(null);
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this employee? This action cannot be undone.')) return;
+    setDeletingId(id);
+    setDeleteError(null);
+    try {
+      const { error } = await supabase.from('employees').delete().eq('id', id);
+      if (error) throw error;
+      if (onDelete) {
+        onDelete(id);
+      } else {
+        window.location.reload();
+      }
+    } catch (err) {
+      setDeleteError('Failed to delete employee. ' + (err.message || ''));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const data = React.useMemo(() => employees, [employees]);
 
   const columns = React.useMemo(
@@ -60,13 +83,25 @@ const EmployeeTable = ({ employees }) => {
         Header: 'Actions',
         accessor: 'actions',
         Cell: ({ row }) => (
-          <button className="text-red-600 hover:text-red-800">
-            <Trash size={20} />
+          <button
+            className={`text-red-600 hover:text-red-800 flex items-center ${deletingId === row.original.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={() => handleDelete(row.original.id)}
+            disabled={deletingId === row.original.id}
+            title="Delete employee"
+          >
+            {deletingId === row.original.id ? (
+              <svg className="animate-spin h-5 w-5 mr-1 text-red-600" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+            ) : (
+              <Trash size={20} />
+            )}
           </button>
         ),
       },
     ],
-    []
+    [deletingId]
   );
 
   const {
@@ -106,6 +141,11 @@ const EmployeeTable = ({ employees }) => {
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Employee List
           </h3>
+          {deleteError && (
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+              <p className="text-red-600 dark:text-red-400 text-sm">{deleteError}</p>
+            </div>
+          )}
 
           <div className="flex flex-col">
             <div className="-m-1.5 overflow-x-auto">
