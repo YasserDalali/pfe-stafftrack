@@ -8,15 +8,16 @@ import AnimatedTableRow from './AnimatedTableRow';
 import ModalButton from './Modal';
 import ProfilePage from '../pages/ProfilePage';
 import supabase from '../database/supabase-client';
+import WarningModal from './WarningModal';
 
 const defaultAvatar = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
 
 const EmployeeTable = ({ employees, onDelete }) => {
   const [deletingId, setDeletingId] = React.useState(null);
   const [deleteError, setDeleteError] = React.useState(null);
+  const [warningModal, setWarningModal] = React.useState({ open: false, employee: null });
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this employee? This action cannot be undone.')) return;
     setDeletingId(id);
     setDeleteError(null);
     try {
@@ -31,6 +32,7 @@ const EmployeeTable = ({ employees, onDelete }) => {
       setDeleteError('Failed to delete employee. ' + (err.message || ''));
     } finally {
       setDeletingId(null);
+      setWarningModal({ open: false, employee: null });
     }
   };
 
@@ -85,7 +87,7 @@ const EmployeeTable = ({ employees, onDelete }) => {
         Cell: ({ row }) => (
           <button
             className={`text-red-600 hover:text-red-800 flex items-center ${deletingId === row.original.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-            onClick={() => handleDelete(row.original.id)}
+            onClick={() => setWarningModal({ open: true, employee: row.original })}
             disabled={deletingId === row.original.id}
             title="Delete employee"
           >
@@ -146,6 +148,16 @@ const EmployeeTable = ({ employees, onDelete }) => {
               <p className="text-red-600 dark:text-red-400 text-sm">{deleteError}</p>
             </div>
           )}
+          <WarningModal
+            isOpen={warningModal.open}
+            title="Delete Employee"
+            message={warningModal.employee ? `Are you sure you want to delete ${warningModal.employee.name}? This action cannot be undone.` : ''}
+            confirmLabel={deletingId === (warningModal.employee && warningModal.employee.id) ? 'Deleting...' : 'Delete'}
+            cancelLabel="Cancel"
+            loading={deletingId === (warningModal.employee && warningModal.employee.id)}
+            onConfirm={() => warningModal.employee && handleDelete(warningModal.employee.id)}
+            onCancel={() => setWarningModal({ open: false, employee: null })}
+          />
 
           <div className="flex flex-col">
             <div className="-m-1.5 overflow-x-auto">
@@ -218,7 +230,7 @@ const EmployeeTable = ({ employees, onDelete }) => {
                       onChange={e => setPageSize(Number(e.target.value))}
                       className="px-3 py-1 border rounded-md dark:bg-neutral-700 dark:border-neutral-600 dark:text-white"
                     >
-                      {[5, 10, 20].map(size => (
+                      {[20, 50, 150].map(size => (
                         <option key={size} value={size}>
                           Show {size}
                         </option>
