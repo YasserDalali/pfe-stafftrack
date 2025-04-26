@@ -9,7 +9,7 @@ const LeaveForm = ({ isOpen, onClose, employees, onSuccess }) => {
     end_date: '',
     reason: '',
     type: 'vacation',
-    status: 'Pending'
+    status: 'pending'
   });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -20,17 +20,16 @@ const LeaveForm = ({ isOpen, onClose, employees, onSuccess }) => {
     setLoading(true);
 
     try {
-      // Check if leave already exists for this period
-      const { data: existingLeaves, error: checkError } = await supabase
+      // Check for overlapping leaves for this employee
+      const { data: overlapping, error: checkError } = await supabase
         .from('leaves')
         .select('id')
         .eq('employee_id', formData.employee_id)
-        .or(`start_date.gte.${formData.start_date},end_date.lte.${formData.end_date}`)
+        .or(`and(start_date.lte.${formData.end_date},end_date.gte.${formData.start_date})`)
         .limit(1);
 
       if (checkError) throw checkError;
-
-      if (existingLeaves?.length > 0) {
+      if (overlapping && overlapping.length > 0) {
         setError('Leave already exists for this period');
         setLoading(false);
         return;
@@ -45,13 +44,12 @@ const LeaveForm = ({ isOpen, onClose, employees, onSuccess }) => {
           end_date: formData.end_date,
           reason: formData.reason,
           type: formData.type,
-          status: formData.status
+          status: 'pending'
         }])
         .select('id')
         .single();
 
       if (insertError) throw insertError;
-
       if (data?.id) {
         onClose();
         if (onSuccess) {
@@ -63,7 +61,7 @@ const LeaveForm = ({ isOpen, onClose, employees, onSuccess }) => {
           end_date: '',
           reason: '',
           type: 'vacation',
-          status: 'Pending'
+          status: 'pending'
         });
       }
     } catch (err) {
