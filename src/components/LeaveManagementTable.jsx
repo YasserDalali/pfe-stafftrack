@@ -3,9 +3,31 @@ import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table
 import { ArrowDown, ArrowUp, ArrowUpDown, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AnimatedTableRow from './AnimatedTableRow';
+import WarningModal from './WarningModal';
+import supabase from '../database/supabase-client';
 
 const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = [] }) => {
   const [tableData, setTableData] = useState(initialLeaveData);
+  const [warningModal, setWarningModal] = useState({ open: false, leave: null });
+  const [viewModal, setViewModal] = useState({ open: false, leave: null });
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
+  const [statusUpdatingId, setStatusUpdatingId] = useState(null);
+
+  const handleDelete = async (id) => {
+    setDeletingId(id);
+    setDeleteError(null);
+    try {
+      const { error } = await supabase.from('leaves').delete().eq('id', id);
+      if (error) throw error;
+      setTableData((prev) => prev.filter((leave) => leave.id !== id));
+    } catch (err) {
+      setDeleteError('Failed to delete leave request. ' + (err.message || ''));
+    } finally {
+      setDeletingId(null);
+      setWarningModal({ open: false, leave: null });
+    }
+  };
 
   const data = React.useMemo(() => tableData, [tableData]);
 
@@ -59,16 +81,29 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
         Cell: ({ value, row }) => (
           <select
             value={value}
-            onChange={(e) => {
-              const newData = [...tableData];
-              newData[row.index].status = e.target.value;
-              setTableData(newData);
+            onChange={async (e) => {
+              const newStatus = e.target.value;
+              const leaveId = row.original.id;
+              const prevStatus = value;
+              setStatusUpdatingId(leaveId);
+              setDeleteError(null);
+              // Optimistically update UI
+              setTableData((prev) => prev.map(l => l.id === leaveId ? { ...l, status: newStatus } : l));
+              const { error } = await supabase.from('leaves').update({ status: newStatus }).eq('id', leaveId);
+              if (error) {
+                // Revert UI and show error
+                setTableData((prev) => prev.map(l => l.id === leaveId ? { ...l, status: prevStatus } : l));
+                setDeleteError('Failed to update status. ' + (error.message || ''));
+              }
+              setStatusUpdatingId(null);
             }}
+            disabled={statusUpdatingId === row.original.id}
             className={`px-3 py-1 rounded-md text-sm font-medium border-2 cursor-pointer
               ${value === 'Approved' ? 'bg-green-100 text-green-700 border-green-200' :
                 value === 'Pending' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
                   value === 'Rejected' ? 'bg-red-100 text-red-700 border-red-200' :
-                    'bg-gray-100 text-gray-700 border-gray-200'}`
+                    'bg-gray-100 text-gray-700 border-gray-200'}
+              ${statusUpdatingId === row.original.id ? 'opacity-50' : ''}`
             }
           >
             <option value="Pending" className="bg-white text-yellow-700">Pending</option>
@@ -84,21 +119,27 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
           <div className="flex space-x-2">
             <button
               className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 focus:outline-none"
-              onClick={() => console.log('View details', row.original)}
+              onClick={() => setViewModal({ open: true, leave: row.original })}
             >
               View
             </button>
             <button
               className="px-3 py-1 text-sm font-medium text-red-600 hover:text-red-800 focus:outline-none"
-              onClick={() => console.log('Delete', row.original)}
+              onClick={() => setWarningModal({ open: true, leave: row.original })}
+              disabled={deletingId === row.original.id}
             >
-              Delete
+              {deletingId === row.original.id ? (
+                <svg className="animate-spin h-5 w-5 mr-1 text-red-600" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+              ) : 'Delete'}
             </button>
           </div>
         ),
       },
     ],
-    [tableData, employees]
+    [tableData, employees, deletingId, statusUpdatingId]
   );
 
   const {
@@ -134,7 +175,49 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           Leave Requests
         </h3>
-
+        {deleteError && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+            <p className="text-red-600 dark:text-red-400 text-sm">{deleteError}</p>
+          </div>
+        )}
+        <WarningModal
+          isOpen={warningModal.open}
+          title="Delete Leave Request"
+          message={warningModal.leave ? `Are you sure you want to delete this leave request for employee ID ${warningModal.leave.employee_id}? This action cannot be undone.` : ''}
+          confirmLabel={deletingId === (warningModal.leave && warningModal.leave.id) ? 'Deleting...' : 'Delete'}
+          cancelLabel="Cancel"
+          loading={deletingId === (warningModal.leave && warningModal.leave.id)}
+          onConfirm={() => warningModal.leave && handleDelete(warningModal.leave.id)}
+          onCancel={() => setWarningModal({ open: false, leave: null })}
+        />
+        {/* View Modal */}
+        {viewModal.open && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+            <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-lg p-6 max-w-md w-full m-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Leave Details</h3>
+              <div className="text-left space-y-2">
+                <div><b>Employee:</b> {(() => {
+                  const emp = employees.find(e => e.id === viewModal.leave.employee_id);
+                  return emp ? emp.name : viewModal.leave.employee_id;
+                })()}</div>
+                <div><b>Type:</b> {viewModal.leave.type}</div>
+                <div><b>Status:</b> {viewModal.leave.status}</div>
+                <div><b>Start Date:</b> {viewModal.leave.start_date}</div>
+                <div><b>End Date:</b> {viewModal.leave.end_date}</div>
+                <div><b>Duration:</b> {viewModal.leave.duration} days</div>
+                <div><b>Reason:</b> {viewModal.leave.reason}</div>
+              </div>
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setViewModal({ open: false, leave: null })}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-md"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex flex-col">
           <div className="-m-1.5 overflow-x-auto">
             <div className="p-1.5 min-w-full inline-block align-middle">
