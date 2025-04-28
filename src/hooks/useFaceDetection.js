@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import * as faceapi from "face-api.js";
 import sb from '../database/supabase-client';
+import fs from 'fs';
+import path from 'path';
+import { fetchEmployeeData } from '../utils/fetchEmployeeData';
+import { logAttendance } from '../utils/logAttendance';
+import { checkFaceQuality } from '../utils/checkFaceQuality';
 
 const useFaceDetection = (threshold = 0.4) => {
   const videoRef = useRef(null);
@@ -33,301 +38,6 @@ const useFaceDetection = (threshold = 0.4) => {
 
   // Track consecutive detections
   const consecutiveDetectionsRef = useRef({});
-
-  // Fetch employee data and images from Supabase
-  const fetchEmployeeData = async () => {
-    try {
-      console.log('Starting to fetch employee data and faces...');
-
-      // First, list all files in the employee-avatars bucket
-      const { data: files, error: storageError } = await sb.storage
-        .from('employee-avatars')
-        .list();
-
-      if (storageError) {
-        console.error('Error listing files:', storageError);
-        throw storageError;
-      }
-
-      console.log('Found files in bucket:', files);
-
-      // Get all employees data
-      const { data: employees, error: dbError } = await sb
-        .from('employees')
-        .select('id, name, avatar_url')
-        .not('avatar_url', 'is', null);
-
-      if (dbError) {
-        console.error('Error fetching employees:', dbError);
-        throw dbError;
-      }
-
-      console.log('Found employees:', employees);
-
-      const referenceImages = {};
-      const processedEmployees = new Set();
-
-      // Process each employee
-      for (const employee of employees) {
-        if (!employee.avatar_url || processedEmployees.has(employee.name)) continue;
-
-        try {
-          // Get the public URL for the employee's avatar
-          const { data: avatarData } = sb.storage
-            .from('employee-avatars')
-            .getPublicUrl(employee.avatar_url);
-
-          if (avatarData?.publicUrl) {
-            // Store employee data for later use
-            employeeDataRef.current[employee.name] = {
-              id: employee.id,
-              name: employee.name
-            };
-
-            // Initialize array for this employee's face images
-            referenceImages[employee.name] = [avatarData.publicUrl];
-            processedEmployees.add(employee.name);
-
-            console.log(`Processed avatar for ${employee.name}:`, avatarData.publicUrl);
-
-            // Look for additional training images with the employee's name
-            const employeeFiles = files.filter(file => 
-              file.name.toLowerCase().includes(employee.name.toLowerCase()) &&
-              file.name !== employee.avatar_url
-            );
-
-            // Add additional training images if found
-            for (const file of employeeFiles) {
-              const { data: additionalImage } = sb.storage
-                .from('employee-avatars')
-                .getPublicUrl(file.name);
-
-              if (additionalImage?.publicUrl) {
-                referenceImages[employee.name].push(additionalImage.publicUrl);
-                console.log(`Added additional training image for ${employee.name}:`, file.name);
-              }
-            }
-          }
-        } catch (error) {
-          console.error(`Error processing employee ${employee.name}:`, error);
-        }
-      }
-
-      // Look for any training images that might not be linked to employees
-      for (const file of files) {
-        // Skip already processed files
-        if ([...processedEmployees].some(name => 
-          file.name.toLowerCase().includes(name.toLowerCase())
-        )) continue;
-
-        // Try to extract name from filename (assuming format: name_*.jpg)
-        const nameMatch = file.name.match(/^([^_]+)/);
-        if (nameMatch) {
-          const name = nameMatch[1];
-          if (!referenceImages[name]) {
-            const { data: imageData } = sb.storage
-              .from('employee-avatars')
-              .getPublicUrl(file.name);
-
-            if (imageData?.publicUrl) {
-              if (!referenceImages[name]) {
-                referenceImages[name] = [];
-                console.log(`Found training images for unlisted employee: ${name}`);
-              }
-              referenceImages[name].push(imageData.publicUrl);
-            }
-          }
-        }
-      }
-
-      console.log('Finished processing employee faces:', {
-        employeeCount: Object.keys(referenceImages).length,
-        totalImages: Object.values(referenceImages).flat().length
-      });
-
-      return referenceImages;
-    } catch (error) {
-      console.error('Error fetching employee data:', error);
-      return {};
-    }
-  };
-
-  // Log attendance to Supabase using MCP
-  const logAttendance = async (employeeName, confidence) => {
-    try {
-      console.log('🔍 Starting attendance logging process for:', employeeName);
-      
-      const employeeData = employeeDataRef.current[employeeName];
-      if (!employeeData) {
-        console.error('❌ Employee data not found in ref:', employeeName);
-        console.log('Current employeeDataRef:', employeeDataRef.current);
-        return false;
-      }
-
-      console.log('📋 Employee data found:', employeeData);
-
-      // Get today's date in ISO format for comparison
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
-      console.log('📅 Checking attendance between:', {
-        today: today.toISOString(),
-        tomorrow: tomorrow.toISOString()
-      });
-
-      // Check if attendance already exists for today
-      const checkQuery = `
-        SELECT id, checkdate 
-        FROM attendance 
-        WHERE employee_id = ${employeeData.id}
-        AND checkdate >= '${today.toISOString()}'
-        AND checkdate < '${tomorrow.toISOString()}'
-        LIMIT 1;
-      `;
-      
-      console.log('🔍 Executing check query:', checkQuery);
-      
-      const checkResult = await window.mcp_supabase_execute_sql({
-        project_id: "zfkdqglvibuxgjexkall",
-        query: checkQuery
-      });
-
-      console.log('📊 Check result:', checkResult);
-
-      const existingAttendance = checkResult?.data || [];
-
-      // Only proceed if no attendance record exists for today
-      if (existingAttendance.length === 0) {
-        console.log('✨ No existing attendance found, proceeding with new record');
-        
-        const now = new Date();
-        const startTime = new Date(now);
-        startTime.setHours(9, 0, 0, 0);
-
-        const lateness = now > startTime ? 
-          Math.floor((now - startTime) / (1000 * 60)) : 
-          0;
-
-        console.log('⏰ Calculated lateness:', {
-          now: now.toISOString(),
-          startTime: startTime.toISOString(),
-          latenessMinutes: lateness
-        });
-
-        // Insert new attendance record
-        const insertQuery = `
-          INSERT INTO attendance (
-            employee_id, 
-            checkdate, 
-            status, 
-            lateness
-          ) VALUES (
-            ${employeeData.id},
-            '${now.toISOString()}',
-            '${lateness > 0 ? 'late' : 'on_time'}',
-            ${lateness > 0 ? `'${lateness} minutes'` : 'NULL'}
-          ) RETURNING id, checkdate;
-        `;
-
-        console.log('📝 Executing insert query:', insertQuery);
-
-        const insertResult = await window.mcp_supabase_execute_sql({
-          project_id: "zfkdqglvibuxgjexkall",
-          query: insertQuery
-        });
-
-        console.log('📊 Insert result:', insertResult);
-
-        if (insertResult?.data?.[0]?.id) {
-          console.log(`✅ Successfully logged attendance for ${employeeName}`);
-          return true;
-        } else {
-          console.error('❌ Failed to insert attendance record:', insertResult);
-          return false;
-        }
-      } else {
-        console.log(`ℹ️ Attendance already logged for ${employeeName} at ${existingAttendance[0].checkdate}`);
-        return false;
-      }
-    } catch (error) {
-      console.error('❌ Error in logAttendance:', error);
-      return false;
-    }
-  };
-
-  // Enhanced face quality check
-  const checkFaceQuality = (detection, videoElement) => {
-    const { width, height, score } = detection.detection.box;
-    
-    console.log('Face detection quality:', {
-      score,
-      width,
-      height,
-      minRequired: CONFIG.MIN_FACE_SIZE
-    });
-
-    // Check detection score
-    if (score < CONFIG.MIN_FACE_SCORE) {
-      console.log('Failed quality check: Low detection confidence', score);
-      return { isValid: false, reason: 'Low detection confidence' };
-    }
-
-    // Check face size
-    if (width < CONFIG.MIN_FACE_SIZE || height < CONFIG.MIN_FACE_SIZE) {
-      console.log('Failed quality check: Face too small', { width, height });
-      return { isValid: false, reason: 'Face too small or too far' };
-    }
-
-    // Check face angle
-    const landmarks = detection.landmarks;
-    const leftEye = landmarks.getLeftEye();
-    const rightEye = landmarks.getRightEye();
-    const nose = landmarks.getNose();
-    
-    // Check if nose points are visible (detect partial face coverage)
-    const nosePoints = nose.length;
-    const visibleNosePoints = nose.filter(point => 
-      point.x >= 0 && point.x <= videoElement.width &&
-      point.y >= 0 && point.y <= videoElement.height
-    ).length;
-    
-    const visibilityRatio = visibleNosePoints / nosePoints;
-    console.log('Face visibility ratio:', visibilityRatio);
-    
-    if (visibilityRatio < CONFIG.MIN_LANDMARKS_VISIBILITY) {
-      console.log('Failed quality check: Face partially covered');
-      return { isValid: false, reason: 'Face partially covered' };
-    }
-
-    // Check face angle
-    const angle = Math.abs(Math.atan2(
-      rightEye[0].y - leftEye[0].y,
-      rightEye[0].x - leftEye[0].x
-    ) * (180 / Math.PI));
-    
-    console.log('Face angle:', angle);
-    
-    if (angle > CONFIG.MAX_ANGLE) {
-      console.log('Failed quality check: Face angle too large', angle);
-      return { isValid: false, reason: 'Face not aligned properly' };
-    }
-
-    // Check face symmetry (detect partial face)
-    const leftSide = landmarks.getJawOutline().slice(0, 8);
-    const rightSide = landmarks.getJawOutline().slice(8);
-    const symmetryRatio = Math.abs(leftSide.length - rightSide.length) / leftSide.length;
-    
-    console.log('Face symmetry ratio:', symmetryRatio);
-    
-    if (symmetryRatio > 0.2) {
-      console.log('Failed quality check: Face asymmetry too high', symmetryRatio);
-      return { isValid: false, reason: 'Face partially visible' };
-    }
-
-    return { isValid: true };
-  };
 
   // Track consecutive successful detections
   const updateConsecutiveDetections = (personId, match) => {
@@ -455,7 +165,7 @@ const useFaceDetection = (threshold = 0.4) => {
       // First get list of available video devices
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
-      
+
       console.log('Available video devices:', videoDevices); // Debug available devices
 
       // Try to use the last device in the list (usually external webcam)
@@ -475,7 +185,7 @@ const useFaceDetection = (threshold = 0.4) => {
       console.log('Using video constraints:', constraints); // Debug selected constraints
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
