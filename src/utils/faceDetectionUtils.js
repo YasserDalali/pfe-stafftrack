@@ -63,6 +63,12 @@ export const detectFace = async (image) => {
 
 export const calculateFaceMatch = (descriptor, referenceDescriptors) => {
   console.log('🔄 Starting face matching process');
+  
+  if (!referenceDescriptors || Object.keys(referenceDescriptors).length === 0) {
+    console.log('⚠️ No reference descriptors available');
+    return { label: 'Unknown', distance: 1, confidence: 0, averageConfidence: 0 };
+  }
+
   console.log('📊 Number of reference descriptors:', Object.keys(referenceDescriptors).length);
   
   let bestMatch = { label: 'Unknown', distance: 1, confidence: 0 };
@@ -70,13 +76,15 @@ export const calculateFaceMatch = (descriptor, referenceDescriptors) => {
   let totalDistance = 0;
   let allMatches = [];
 
-  for (const [employeeId, descriptors] of Object.entries(referenceDescriptors)) {
-    console.log(`\n👤 Comparing with employee ${employeeId}:`);
-    console.log(`📸 Number of reference images for ${employeeId}:`, descriptors.length);
+  // Iterate through each employee's descriptors
+  for (const [employeeId, employeeData] of Object.entries(referenceDescriptors)) {
+    console.log(`\n👤 Comparing with employee ${employeeData.name} (ID: ${employeeId}):`);
+    console.log(`📸 Number of reference descriptors:`, employeeData.descriptors.length);
     
     let bestDistanceForEmployee = 1;
     
-    for (const referenceDescriptor of descriptors) {
+    // Compare with each descriptor for this employee
+    for (const referenceDescriptor of employeeData.descriptors) {
       const distance = faceapi.euclideanDistance(descriptor, referenceDescriptor);
       console.log(`📏 Distance:`, distance.toFixed(3));
       
@@ -91,13 +99,15 @@ export const calculateFaceMatch = (descriptor, referenceDescriptors) => {
     
     allMatches.push({
       employeeId,
+      name: employeeData.name,
       bestDistance: bestDistanceForEmployee,
       confidence: 1 - bestDistanceForEmployee
     });
 
     if (bestDistanceForEmployee < bestMatch.distance) {
       bestMatch = { 
-        label: employeeId, 
+        label: employeeId,
+        name: employeeData.name,
         distance: bestDistanceForEmployee,
         confidence: 1 - bestDistanceForEmployee
       };
@@ -111,6 +121,7 @@ export const calculateFaceMatch = (descriptor, referenceDescriptors) => {
   console.log('\n📊 Matching Results:');
   console.log('🏆 Best Match:', {
     employeeId: bestMatch.label,
+    name: bestMatch.name,
     confidence: (bestMatch.confidence * 100).toFixed(1) + '%',
     averageConfidence: (bestMatch.averageConfidence * 100).toFixed(1) + '%'
   });
@@ -119,6 +130,7 @@ export const calculateFaceMatch = (descriptor, referenceDescriptors) => {
     .sort((a, b) => b.confidence - a.confidence)
     .map(m => ({
       employeeId: m.employeeId,
+      name: m.name,
       confidence: (m.confidence * 100).toFixed(1) + '%'
     }))
   );

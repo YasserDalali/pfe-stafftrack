@@ -6,7 +6,7 @@ import path from 'path'; */
 import { fetchEmployeeData } from '../utils/fetchEmployeeData';
 import { logAttendance } from '../utils/logAttendance';
 import { checkFaceQuality } from '../utils/checkFaceQuality';
-import { downloadAndProcessImage, loadEmployeePhotos, getEmployeeIdFromFilename } from '../utils/storageUtils';
+import { downloadAndProcessImage, loadEmployeePhotos, getEmployeeIdFromFilename, buildEmployeeFaceDescriptors } from '../utils/storageUtils';
 import { initializeFaceApi, detectFace, calculateFaceMatch, CONFIG } from '../utils/faceDetectionUtils';
 import { getEmployeeData } from '../utils/databaseUtils';
 
@@ -31,23 +31,15 @@ const useFaceDetection = () => {
         // Start video
         await startVideo();
 
-        // Load employee photos from Supabase storage
-        const photos = await loadEmployeePhotos();
+        // Load employee face descriptors
+        console.log('🔄 Loading employee face descriptors');
+        const employeeDescriptors = await buildEmployeeFaceDescriptors();
         
-        // Process each photo and store descriptors
-        for (const photo of photos) {
-          const employeeId = getEmployeeIdFromFilename(photo.name);
-          const img = await downloadAndProcessImage(photo.name);
-          
-          if (img) {
-            const detection = await detectFace(img);
-            if (detection?.descriptor) {
-              if (!descriptorsRef.current[employeeId]) {
-                descriptorsRef.current[employeeId] = [];
-              }
-              descriptorsRef.current[employeeId].push(detection.descriptor);
-            }
-          }
+        if (Object.keys(employeeDescriptors).length === 0) {
+          console.log('⚠️ No valid employee face descriptors found');
+        } else {
+          console.log('✅ Loaded face descriptors for', Object.keys(employeeDescriptors).length, 'employees');
+          descriptorsRef.current = employeeDescriptors;
         }
 
         setLoading(false);
@@ -125,8 +117,9 @@ const useFaceDetection = () => {
           
           if (match.confidence > 0.6) {
             // Draw green box for recognized face
+            const employeeName = match.name || 'Unknown';
             new faceapi.draw.DrawBox(resizedDetection.detection.box, {
-              label: `${match.label} (${(match.confidence * 100).toFixed(1)}%)`,
+              label: `${employeeName} (${(match.confidence * 100).toFixed(1)}%)`,
               boxColor: '#00ff00'
             }).draw(canvas);
 
@@ -143,6 +136,7 @@ const useFaceDetection = () => {
                   ...prev,
                   {
                     employeeId: match.label,
+                    name: match.name,
                     timestamp: new Date().toISOString(),
                     confidence: match.confidence
                   }
