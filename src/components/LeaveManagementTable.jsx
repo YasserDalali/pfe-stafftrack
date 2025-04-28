@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AnimatedTableRow from './AnimatedTableRow';
 import WarningModal from './WarningModal';
+import EditModal from './EditModal';
 import supabase from '../database/supabase-client';
 
 const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = [] }) => {
@@ -13,6 +14,9 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
   const [deletingId, setDeletingId] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
   const [statusUpdatingId, setStatusUpdatingId] = useState(null);
+  const [editModal, setEditModal] = useState({ open: false, leave: null });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState(null);
 
   const handleDelete = async (id) => {
     setDeletingId(id);
@@ -124,6 +128,12 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
               View
             </button>
             <button
+              className="px-3 py-1 text-sm font-medium text-green-600 hover:text-green-800 focus:outline-none"
+              onClick={() => setEditModal({ open: true, leave: row.original })}
+            >
+              Edit
+            </button>
+            <button
               className="px-3 py-1 text-sm font-medium text-red-600 hover:text-red-800 focus:outline-none"
               onClick={() => setWarningModal({ open: true, leave: row.original })}
               disabled={deletingId === row.original.id}
@@ -189,6 +199,44 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
           loading={deletingId === (warningModal.leave && warningModal.leave.id)}
           onConfirm={() => warningModal.leave && handleDelete(warningModal.leave.id)}
           onCancel={() => setWarningModal({ open: false, leave: null })}
+        />
+        <EditModal
+          isOpen={editModal.open}
+          title="Edit Leave Request"
+          fields={[
+            { name: 'employee_id', label: 'Employee', type: 'select', required: true, options: employees.map(e => ({ value: e.id, label: e.name })) },
+            { name: 'type', label: 'Type', type: 'text', required: true },
+            { name: 'start_date', label: 'Start Date', type: 'date', required: true },
+            { name: 'end_date', label: 'End Date', type: 'date', required: true },
+            { name: 'duration', label: 'Duration (days)', type: 'number', min: 1, required: true },
+            { name: 'status', label: 'Status', type: 'select', required: true, options: [
+              { value: 'pending', label: 'Pending' },
+              { value: 'approved', label: 'Approved' },
+              { value: 'rejected', label: 'Rejected' },
+            ] },
+            { name: 'reason', label: 'Reason', type: 'textarea' },
+          ]}
+          initialValues={editModal.leave || {}}
+          loading={editLoading}
+          error={editError}
+          onClose={() => setEditModal({ open: false, leave: null })}
+          onSubmit={async (values) => {
+            setEditLoading(true);
+            setEditError(null);
+            try {
+              const { error } = await supabase
+                .from('leaves')
+                .update(values)
+                .eq('id', editModal.leave.id);
+              if (error) throw error;
+              setTableData((prev) => prev.map(l => l.id === editModal.leave.id ? { ...l, ...values } : l));
+              setEditModal({ open: false, leave: null });
+            } catch (err) {
+              setEditError('Failed to update leave. ' + (err.message || ''));
+            } finally {
+              setEditLoading(false);
+            }
+          }}
         />
         {/* View Modal */}
         {viewModal.open && (

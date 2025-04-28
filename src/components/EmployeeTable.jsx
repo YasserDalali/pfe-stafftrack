@@ -9,6 +9,7 @@ import ModalButton from './Modal';
 import ProfilePage from '../pages/ProfilePage';
 import supabase from '../database/supabase-client';
 import WarningModal from './WarningModal';
+import EditModal from './EditModal';
 
 const defaultAvatar = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
 
@@ -16,6 +17,9 @@ const EmployeeTable = ({ employees, onDelete }) => {
   const [deletingId, setDeletingId] = React.useState(null);
   const [deleteError, setDeleteError] = React.useState(null);
   const [warningModal, setWarningModal] = React.useState({ open: false, employee: null });
+  const [editModal, setEditModal] = React.useState({ open: false, employee: null });
+  const [editLoading, setEditLoading] = React.useState(false);
+  const [editError, setEditError] = React.useState(null);
 
   const handleDelete = async (id) => {
     setDeletingId(id);
@@ -85,21 +89,30 @@ const EmployeeTable = ({ employees, onDelete }) => {
         Header: 'Actions',
         accessor: 'actions',
         Cell: ({ row }) => (
-          <button
-            className={`text-red-600 hover:text-red-800 flex items-center ${deletingId === row.original.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-            onClick={() => setWarningModal({ open: true, employee: row.original })}
-            disabled={deletingId === row.original.id}
-            title="Delete employee"
-          >
-            {deletingId === row.original.id ? (
-              <svg className="animate-spin h-5 w-5 mr-1 text-red-600" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-              </svg>
-            ) : (
-              <Trash size={20} />
-            )}
-          </button>
+          <div className="flex space-x-2">
+            <button
+              className={`text-blue-600 hover:text-blue-800 flex items-center`}
+              onClick={() => setEditModal({ open: true, employee: row.original })}
+              title="Edit employee"
+            >
+              Edit
+            </button>
+            <button
+              className={`text-red-600 hover:text-red-800 flex items-center ${deletingId === row.original.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+              onClick={() => setWarningModal({ open: true, employee: row.original })}
+              disabled={deletingId === row.original.id}
+              title="Delete employee"
+            >
+              {deletingId === row.original.id ? (
+                <svg className="animate-spin h-5 w-5 mr-1 text-red-600" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+              ) : (
+                <Trash size={20} />
+              )}
+            </button>
+          </div>
         ),
       },
     ],
@@ -157,6 +170,52 @@ const EmployeeTable = ({ employees, onDelete }) => {
             loading={deletingId === (warningModal.employee && warningModal.employee.id)}
             onConfirm={() => warningModal.employee && handleDelete(warningModal.employee.id)}
             onCancel={() => setWarningModal({ open: false, employee: null })}
+          />
+
+          <EditModal
+            isOpen={editModal.open}
+            title="Edit Employee"
+            fields={[
+              { name: 'name', label: 'Name', type: 'text', required: true },
+              { name: 'email', label: 'Email', type: 'email', required: true, pattern: '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' },
+              { name: 'position', label: 'Position', type: 'text' },
+              { name: 'departement', label: 'Department', type: 'text' },
+              { name: 'hire_date', label: 'Hire Date', type: 'date' },
+              { name: 'leave_balance', label: 'Leave Balance', type: 'number', min: 0 },
+              { name: 'monthly_salary', label: 'Monthly Salary', type: 'number', min: 0, step: '0.01' },
+              { name: 'weekly_work_hours', label: 'Weekly Work Hours', type: 'number', min: 0, step: '0.1' },
+              { name: 'satisfaction_rate', label: 'Satisfaction Rate', type: 'number', min: 0, max: 100 },
+              { name: 'notes', label: 'Notes', type: 'textarea' },
+              { name: 'avatar_url', label: 'Avatar URL', type: 'url' },
+            ]}
+            initialValues={editModal.employee || {}}
+            loading={editLoading}
+            error={editError}
+            onClose={() => setEditModal({ open: false, employee: null })}
+            onSubmit={async (values) => {
+              setEditLoading(true);
+              setEditError(null);
+              try {
+                const { error } = await supabase
+                  .from('employees')
+                  .update(values)
+                  .eq('id', editModal.employee.id);
+                if (error) throw error;
+                if (onDelete) {
+                  // If parent manages state, trigger a refetch or update
+                  setEditModal({ open: false, employee: null });
+                  window.location.reload();
+                } else {
+                  // Update local state
+                  editModal.employee && Object.assign(editModal.employee, values);
+                  setEditModal({ open: false, employee: null });
+                }
+              } catch (err) {
+                setEditError('Failed to update employee. ' + (err.message || ''));
+              } finally {
+                setEditLoading(false);
+              }
+            }}
           />
 
           <div className="flex flex-col">

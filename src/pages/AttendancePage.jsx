@@ -8,6 +8,7 @@ import supabase from '../database/supabase-client';
 import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
 import { Search } from 'lucide-react';
 import AnimatedTableRow from '../components/AnimatedTableRow';
+import EditModal from '../components/EditModal';
 
 const formatDate = (dateString) => {
   const date = new Date(dateString);
@@ -24,6 +25,9 @@ const AttendancePage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { employees, loading: loadingEmployees } = useFetchEmployees();
+  const [editModal, setEditModal] = useState({ open: false, record: null });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState(null);
 
   const fetchAttendance = async () => {
     try {
@@ -84,6 +88,18 @@ const AttendancePage = () => {
         Header: 'Lateness',
         accessor: 'lateness',
         Cell: ({ value }) => value || '-',
+      },
+      {
+        Header: 'Actions',
+        accessor: 'actions',
+        Cell: ({ row }) => (
+          <button
+            className="text-blue-600 hover:text-blue-800 mr-2"
+            onClick={() => setEditModal({ open: true, record: row.original })}
+          >
+            Edit
+          </button>
+        ),
       },
     ],
     []
@@ -192,6 +208,41 @@ const AttendancePage = () => {
         isOpen={isLeaveFormOpen}
         onClose={() => setIsLeaveFormOpen(false)}
         employees={employees}
+      />
+
+      <EditModal
+        isOpen={editModal.open}
+        title="Edit Attendance Record"
+        fields={[
+          { name: 'employee_id', label: 'Employee', type: 'select', required: true, options: employees.map(e => ({ value: e.id, label: e.name })) },
+          { name: 'checkdate', label: 'Check-in Time', type: 'datetime-local', required: true },
+          { name: 'status', label: 'Status', type: 'select', required: true, options: [
+            { value: 'present', label: 'Present' },
+            { value: 'absent', label: 'Absent' },
+          ] },
+          { name: 'lateness', label: 'Lateness (e.g. 00:10:00)', type: 'text' },
+        ]}
+        initialValues={editModal.record || {}}
+        loading={editLoading}
+        error={editError}
+        onClose={() => setEditModal({ open: false, record: null })}
+        onSubmit={async (values) => {
+          setEditLoading(true);
+          setEditError(null);
+          try {
+            const { error } = await supabase
+              .from('attendance')
+              .update(values)
+              .eq('id', editModal.record.id);
+            if (error) throw error;
+            setAttendanceRecords((prev) => prev.map(r => r.id === editModal.record.id ? { ...r, ...values } : r));
+            setEditModal({ open: false, record: null });
+          } catch (err) {
+            setEditError('Failed to update attendance. ' + (err.message || ''));
+          } finally {
+            setEditLoading(false);
+          }
+        }}
       />
 
       {/* Attendance Table */}

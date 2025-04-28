@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import * as faceapi from "face-api.js";
-import sb from '../database/supabase-client';
+/* import sb from '../database/supabase-client';
 import fs from 'fs';
-import path from 'path';
+import path from 'path'; */
 import { fetchEmployeeData } from '../utils/fetchEmployeeData';
 import { logAttendance } from '../utils/logAttendance';
 import { checkFaceQuality } from '../utils/checkFaceQuality';
