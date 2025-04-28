@@ -143,7 +143,7 @@ const DashboardPage = () => {
         <AnimatedComponent delay={0.4}>
           <div
             onClick={() => setIsConfirmModalOpen(true)}
-            className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl shadow-lg p-6 cursor-pointer transform transition-all hover:from-purple-600 hover:to-indigo-700 transition-all mb-7"
+            className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl shadow-lg p-6 cursor-pointer transform hover:from-purple-600 hover:to-indigo-700 mb-7"
           >
             <div className="flex items-center justify-between">
               <div>
@@ -264,16 +264,16 @@ const DashboardPage = () => {
                   .map((record, index) => (
                     <tr key={index}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {record.employee}
+                        {record.employee || 'Unknown Employee'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-neutral-400">
-                        {record.date}
+                        {record.date || 'Unknown Date'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-neutral-400">
-                        {record.details.split('at ')[1]}
+                        {(record.details && record.details.includes('at ')) ? record.details.split('at ')[1] : 'Unknown Time'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-yellow-600">
-                        {record.lateness.split(':')[1]}m
+                        {(record.lateness && record.lateness.includes(':')) ? record.lateness.split(':')[1] + 'm' : '0m'}
                       </td>
                     </tr>
                   ))}
@@ -342,4 +342,4 @@ const DashboardPage = () => {
   );
 };
 
-export default DashboardPage; 
+export default DashboardPage;
