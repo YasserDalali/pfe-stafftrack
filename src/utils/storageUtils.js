@@ -110,18 +110,18 @@ export const getEmployeeIdFromFilename = (filename) => {
 
 export const getEmployeesWithAvatars = async () => {
   try {
-    console.log('📚 Fetching employees with avatars');
+    console.log('📚 Fetching employees with avatars and descriptors');
     const { data: employees, error } = await supabase
       .from('employees')
-      .select('*')
-      .not('avatar_url', 'is', null);
+      .select('id, name, avatar_descriptor')
+      .not('avatar_descriptor', 'is', null);
 
     if (error) {
-      console.error('❌ Error fetching employees:', error);
+      console.error('❌ Error fetching employees with descriptors:', error);
       return [];
     }
 
-    console.log(`✅ Found ${employees.length} employees with avatars`);
+    console.log(`✅ Found ${employees.length} employees with avatar descriptors`);
     return employees;
   } catch (error) {
     console.error('❌ Error in getEmployeesWithAvatars:', error);
@@ -188,32 +188,47 @@ export const generateFaceDescriptor = async (file) => {
 
 export const buildEmployeeFaceDescriptors = async () => {
   try {
-    // Get all employees with avatars
+    // Get all employees with pre-computed descriptors
     const employees = await getEmployeesWithAvatars();
-    console.log(`🔄 Processing ${employees.length} employees`);
+    console.log(`📊 Processing ${employees.length} employees with pre-computed descriptors`);
 
-    // Process each employee's avatar
-    const processedAvatars = await Promise.all(
-      employees.map(employee => processEmployeeAvatar(employee))
-    );
+    if (!employees || employees.length === 0) {
+      console.log('⚠️ No employees with descriptors found.');
+      return {};
+    }
 
-    // Generate face descriptors
-    const descriptors = await Promise.all(
-      processedAvatars
-        .filter(Boolean) // Remove null results
-        .map(avatar => generateFaceDescriptor(avatar.image))
-    );
-
-    // Filter out failed detections and format results
-    const validDescriptors = descriptors.filter(Boolean).reduce((acc, curr) => {
-      acc[curr.employeeId] = {
-        name: curr.name,
-        descriptors: [curr]
-      };
+    // Format results
+    const validDescriptors = employees.reduce((acc, employee) => {
+      if (employee.avatar_descriptor && employee.id && employee.name) {
+        try {
+          // avatar_descriptor is an object like {0: val, 1: val, ...}
+          // Convert its values to an array
+          const descriptorValues = Object.values(employee.avatar_descriptor);
+          
+          if (Array.isArray(descriptorValues) && descriptorValues.length === 128) { // Basic validation
+            acc[employee.id] = {
+              name: employee.name,
+              // face-api.js expects descriptors as Float32Array
+              descriptors: [new Float32Array(descriptorValues)]
+            };
+          } else {
+            console.warn(`⚠️ Invalid descriptor format or length for employee ${employee.name} (ID: ${employee.id})`);
+            console.warn(`   Expected array of 128 numbers, got length: ${descriptorValues.length}`);
+          }
+        } catch (processingError) {
+          console.error(`❌ Error processing descriptor for employee ${employee.name} (ID: ${employee.id}):`, processingError);
+          console.error(`   Descriptor value:`, employee.avatar_descriptor);
+        }
+      } else {
+        console.warn(`⚠️ Missing data for employee:`, employee);
+      }
       return acc;
     }, {});
 
-    console.log('📊 Final descriptor count:', Object.keys(validDescriptors).length);
+    console.log('✅ Final descriptor count:', Object.keys(validDescriptors).length);
+    if (Object.keys(validDescriptors).length === 0 && employees.length > 0) {
+        console.warn('⚠️ No valid descriptors were successfully processed, although employees were fetched. Check descriptor format and data integrity.');
+    }
     return validDescriptors;
   } catch (error) {
     console.error('❌ Error in buildEmployeeFaceDescriptors:', error);

@@ -3,12 +3,9 @@ import * as faceapi from "face-api.js";
 /* import sb from '../database/supabase-client';
 import fs from 'fs';
 import path from 'path'; */
-import { fetchEmployeeData } from '../utils/fetchEmployeeData';
 import { logAttendance } from '../utils/logAttendance';
-import { checkFaceQuality } from '../utils/checkFaceQuality';
-import { downloadAndProcessImage, loadEmployeePhotos, getEmployeeIdFromFilename, buildEmployeeFaceDescriptors } from '../utils/storageUtils';
+import { buildEmployeeFaceDescriptors } from '../utils/storageUtils';
 import { initializeFaceApi, detectFace, calculateFaceMatch, CONFIG } from '../utils/faceDetectionUtils';
-import { getEmployeeData } from '../utils/databaseUtils';
 
 const useFaceDetection = () => {
   const videoRef = useRef(null);
