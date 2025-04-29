@@ -14,12 +14,7 @@ function FaceDetection() {
   // Keep track of attendance records with their screenshots
   const [attendanceWithScreenshots, setAttendanceWithScreenshots] = useState([]);
 
-  const { videoRef, canvasRef, attendance, loading } = useFaceDetection(
-    referenceImages,
-    0.7,
-    1,
-    true
-  );
+  const { videoRef, canvasRef, attendance, loading, isProcessing, resetProcessingState } = useFaceDetection();
 
   // Function to capture screenshot from video
   const captureScreenshot = () => {
@@ -41,15 +36,26 @@ function FaceDetection() {
       const newRecord = attendance[attendance.length - 1];
       const screenshot = captureScreenshot();
 
-      setAttendanceWithScreenshots(prev => [
-        ...prev,
-        {
-          ...newRecord,
-          screenshot
-        }
-      ]);
+      setAttendanceWithScreenshots(prev => {
+        const updatedAttendance = [
+          ...prev,
+          {
+            ...newRecord,
+            screenshot
+          }
+        ];
+        
+        // Signal that processing is complete after state update
+        // We use setTimeout to ensure state update completes first
+        setTimeout(() => {
+          resetProcessingState();
+          console.log('✅ Attendance record processed, detection resumed');
+        }, 500);
+        
+        return updatedAttendance;
+      });
     }
-  }, [attendance]);
+  }, [attendance, resetProcessingState]);
 
   // Cleanup function to stop the video stream
   useEffect(() => {
@@ -79,10 +85,6 @@ function FaceDetection() {
     }
   };
 
-  /*   useEffect = ( ) => {
-      return null; []
-    } */
-
   return (
     <div className="app bg-black">
       
@@ -103,10 +105,15 @@ function FaceDetection() {
           height: "100vh",
         }}
       />
+      {isProcessing && (
+        <div className="absolute top-5 right-5 bg-yellow-500 text-white px-3 py-1 rounded-md shadow-lg">
+          Processing...
+        </div>
+      )}
       <table className="absolute bottom-10 left-[6%] z-20 bg-white border rounded-lg border-gray-300 shadow-lg w-[90%]">
         <thead>
           <tr className="bg-gray-100">
-            <th className="px-4 py-2 text-left font-medium text-gray-700">Attender</th>
+            <th className="px-4 py-2 text-left font-medium text-gray-700">Employee</th>
             <th className="px-4 py-2 text-left font-medium text-gray-700">Time</th>
             <th className="px-4 py-2 text-left font-medium text-gray-700">Accuracy</th>
             <th className="px-4 py-2 text-left font-medium text-gray-700">Status</th>
@@ -116,17 +123,20 @@ function FaceDetection() {
         <tbody>
           {latestRecord && (
             <tr className="bg-white hover:bg-gray-100">
-              <td className="px-4 py-2 text-gray-800">{latestRecord.attender.replace("_", " ")}</td>
+              <td className="px-4 py-2 text-gray-800">
+                {latestRecord.name ? latestRecord.name.replace('_', ' ') : 
+                 latestRecord.employeeId ? latestRecord.employeeId.replace('_', ' ') : 'Unknown'}
+              </td>
               <td className="px-4 py-2 text-gray-800">
                 {new Date(latestRecord.timestamp).toLocaleTimeString()}
               </td>
               <td
-                className={`px-4 py-2 font-semibold ${latestRecord.distance.toFixed(2) < 0.38
+                className={`px-4 py-2 font-semibold ${latestRecord.confidence > 0.6
                     ? "text-green-600"
                     : "text-red-600"
                   }`}
               >
-                {latestRecord.distance.toFixed(2) < 0.4 ? "Accurate" : "Inaccurate"}
+                {latestRecord.confidence > 0.6 ? "Accurate" : "Inaccurate"}
               </td>
               <td className="px-4 py-2 text-gray-800">
                 {new Date(latestRecord.timestamp) > new Date().setHours(4, 30, 0, 0) ? "LATE" : "ON TIME"}
@@ -135,7 +145,7 @@ function FaceDetection() {
                 {latestRecord.screenshot && (
                   <img
                     src={latestRecord.screenshot}
-                    alt={`Screenshot of ${latestRecord.attender}`}
+                    alt={`Screenshot of ${latestRecord.name || latestRecord.employeeId || 'Unknown'}`}
                     className="w-24 h-24 object-cover rounded-md"
                   />
                 )}

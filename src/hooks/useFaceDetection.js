@@ -7,18 +7,26 @@ import { logAttendance } from '../utils/logAttendance';
 import { buildEmployeeFaceDescriptors } from '../utils/storageUtils';
 import { initializeFaceApi, detectFace, calculateFaceMatch } from '../utils/faceDetectionUtils';
 import CONFIG from '../utils/CONFIG';
+import { getSettings } from '../utils/settingsUtils';
+
 const useFaceDetection = () => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [attendance, setAttendance] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
   const descriptorsRef = useRef({});
   const consecutiveDetectionsRef = useRef({});
+  const settingsRef = useRef(CONFIG);
 
   // Initialize face detection
   useEffect(() => {
     const initialize = async () => {
       try {
+        // Load user settings from localStorage if available
+        settingsRef.current = getSettings();
+        console.log('📝 Loaded settings for face detection');
+
         // Load face-api models
         const modelsLoaded = await initializeFaceApi();
         if (!modelsLoaded) {
@@ -85,6 +93,12 @@ const useFaceDetection = () => {
     if (!loading && videoRef.current) {
       const interval = setInterval(async () => {
         if (!videoRef.current || !canvasRef.current) return;
+        
+        // Skip processing if we're still handling the previous detection
+        if (isProcessing) {
+          console.log('⏳ Detection paused - processing previous detection');
+          return;
+        }
 
         try {
           const detection = await detectFace(videoRef.current);
@@ -112,10 +126,10 @@ const useFaceDetection = () => {
           // Calculate match
           const match = calculateFaceMatch(detection.descriptor, descriptorsRef.current);
           
-          // Use a consistent threshold from CONFIG
-          // const recognitionThreshold = 0.5; // Removed local variable
+          // Use settings from localStorage or CONFIG defaults
+          const settings = settingsRef.current;
 
-          if (match.confidence > CONFIG.RECOGNITION_THRESHOLD) { // Use CONFIG.RECOGNITION_THRESHOLD
+          if (match.confidence > settings.RECOGNITION_THRESHOLD) {
             // Draw green box for recognized face
             const employeeName = match.name || 'Unknown';
             new faceapi.draw.DrawBox(resizedDetection.detection.box, {
@@ -123,8 +137,10 @@ const useFaceDetection = () => {
               boxColor: '#00ff00'
             }).draw(canvas);
 
+            // Set processing flag to pause detection while handling this match
+            setIsProcessing(true);
+
             // Log attendance 
-            // (No separate confidence check needed here now)
             const logged = await logAttendance(match.label, match.confidence);
 
             if (logged) {
@@ -138,6 +154,12 @@ const useFaceDetection = () => {
                 }
               ]);
             }
+            
+            // Add a small delay to allow the parent component to process the new attendance record
+            // before resuming detection
+            setTimeout(() => {
+              setIsProcessing(false);
+            }, 1000); // 1 second delay to ensure processing completes
           } else {
             // Draw yellow box for unknown face or low confidence
             new faceapi.draw.DrawBox(resizedDetection.detection.box, {
@@ -148,18 +170,26 @@ const useFaceDetection = () => {
 
         } catch (error) {
           console.error('Error during face detection:', error);
+          setIsProcessing(false); // Ensure processing flag is cleared on error
         }
-      }, CONFIG.DETECTION_INTERVAL);
+      }, settingsRef.current.DETECTION_INTERVAL); // Use the DETECTION_INTERVAL from settings
 
       return () => clearInterval(interval);
     }
-  }, [loading]);
+  }, [loading, isProcessing]); // Added isProcessing as dependency
+
+  // Function to manually reset processing state from parent component
+  const resetProcessingState = () => {
+    setIsProcessing(false);
+  };
 
   return {
     videoRef,
     canvasRef,
     attendance,
-    loading
+    loading,
+    isProcessing,
+    resetProcessingState
   };
 };
 

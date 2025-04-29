@@ -1,34 +1,113 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useDispatch, useSelector } from 'react-redux';
 import AnimatedComponent from '../components/AnimatedComponent';
-import { Camera, Shield, Sliders, Clock, RefreshCw } from 'lucide-react';
+import { Camera, Shield, Sliders, Clock, RefreshCw, ZoomIn, Activity, User, Sun, Target, Ruler } from 'lucide-react';
+import CONFIG from '../utils/CONFIG';
+import { getSettings, saveSettings, resetSettings, settingsInfo, SETTINGS_STORAGE_KEY } from '../utils/settingsUtils';
 
 const SettingsPage = () => {
-  const dispatch = useDispatch();
-  const settings = useSelector((state) => state.settings);
-  const [formData, setFormData] = useState(settings || {});
+  const [settings, setSettings] = useState(CONFIG);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    const newValue = type === 'checkbox' ? checked : 
-                    type === 'number' ? parseFloat(value) :
-                    type === 'range' ? parseFloat(value) : value;
-    
-    setFormData(prev => ({
-      ...prev,
-      [name]: newValue
-    }));
+  // Load settings from localStorage on component mount
+  useEffect(() => {
+    setSettings(getSettings());
+  }, []);
+
+  const handleChange = (key, value) => {
+    setSettings(prev => {
+      const newSettings = { ...prev, [key]: value };
+      setHasChanges(true);
+      setSaveSuccess(false);
+      return newSettings;
+    });
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    dispatch({ type: 'UPDATE_SETTINGS', payload: formData });
+  const handleSave = () => {
+    const success = saveSettings(settings);
+    if (success) {
+      setHasChanges(false);
+      setSaveSuccess(true);
+      // Hide success message after 3 seconds
+      setTimeout(() => setSaveSuccess(false), 3000);
+    }
   };
 
   const handleReset = () => {
-    dispatch({ type: 'RESET_SETTINGS' });
-    setFormData(settings);
+    setSettings(resetSettings());
+    setHasChanges(true);
+    setSaveSuccess(false);
+  };
+
+  // Helper function to get the icon component
+  const getIconComponent = (iconName, color) => {
+    const iconProps = { size: 20, className: `text-${color}-500` };
+    
+    switch (iconName) {
+      case 'shield': return <Shield {...iconProps} />;
+      case 'user': return <User {...iconProps} />;
+      case 'clock': return <Clock {...iconProps} />;
+      case 'zoom-in': return <ZoomIn {...iconProps} />;
+      case 'activity': return <Activity {...iconProps} />;
+      case 'refresh-cw': return <RefreshCw {...iconProps} />;
+      case 'sliders': return <Sliders {...iconProps} />;
+      case 'sun': return <Sun {...iconProps} />;
+      case 'target': return <Target {...iconProps} />;
+      case 'ruler': return <Ruler {...iconProps} />;
+      default: return <Sliders {...iconProps} />;
+    }
+  };
+
+  const renderSettingControl = (key) => {
+    const info = settingsInfo[key];
+    const value = settings[key];
+    
+    if (!info) return null;
+    
+    return (
+      <div key={key} className="mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          {getIconComponent(info.icon, info.color)}
+          <label className="text-sm font-medium text-gray-700 dark:text-neutral-200">
+            {info.title}
+          </label>
+        </div>
+        
+        <div className="mb-2">
+          {info.type === "range" ? (
+            <div className="flex items-center space-x-2">
+              <input
+                type="range"
+                min={info.min}
+                max={info.max}
+                step={info.step}
+                value={value}
+                onChange={(e) => handleChange(key, parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-neutral-700 accent-blue-500"
+              />
+              <span className="text-sm font-mono text-gray-600 dark:text-neutral-300 min-w-[40px] text-right">
+                {value.toFixed(2)}
+              </span>
+            </div>
+          ) : (
+            <input
+              type="number"
+              min={info.min}
+              max={info.max}
+              step={info.step}
+              value={value}
+              onChange={(e) => handleChange(key, parseFloat(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-200 rounded-md dark:bg-neutral-700 dark:border-neutral-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          )}
+        </div>
+        
+        <p className="text-xs text-gray-500 dark:text-neutral-400 italic">
+          {info.description}
+        </p>
+      </div>
+    );
   };
 
   return (
@@ -36,148 +115,57 @@ const SettingsPage = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="p-6"
+      className="p-8"
     >
       <AnimatedComponent>
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">
-          Face Detection Settings
-        </h1>
-      </AnimatedComponent>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <AnimatedComponent delay={0.1}>
-          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Camera className="text-blue-500" size={24} />
-                <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
-                  Detection Configuration
-                </h2>
-              </div>
-              <button
-                onClick={handleReset}
-                className="text-sm text-gray-500 hover:text-gray-700 dark:text-neutral-400 dark:hover:text-neutral-300"
-              >
-                <RefreshCw size={16} />
-              </button>
-            </div>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
+            Face Detection Settings
+          </h1>
+          
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleReset}
+              className="px-4 py-2 text-sm text-gray-600 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-full transition-colors duration-200 flex items-center gap-2"
+            >
+              <RefreshCw size={16} />
+              <span>Reset to Defaults</span>
+            </button>
             
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">
-                  Detection Confidence (0-1)
-                </label>
-                <input
-                  type="range"
-                  name="detectionConfidence"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={formData.detectionConfidence}
-                  onChange={handleChange}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-neutral-700"
-                />
-                <span className="text-sm text-gray-500 dark:text-neutral-400">
-                  {formData.detectionConfidence}
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">
-                  Capture Interval (ms)
-                </label>
-                <input
-                  type="number"
-                  name="captureInterval"
-                  value={formData.captureInterval}
-                  onChange={handleChange}
-                  min="500"
-                  max="5000"
-                  step="100"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-neutral-700 dark:border-neutral-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">
-                  Maximum Retries
-                </label>
-                <input
-                  type="number"
-                  name="maxRetries"
-                  value={formData.maxRetries}
-                  onChange={handleChange}
-                  min="1"
-                  max="10"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-neutral-700 dark:border-neutral-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </form>
+            <button
+              onClick={handleSave}
+              disabled={!hasChanges}
+              className={`px-6 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 disabled:dark:bg-blue-800 disabled:cursor-not-allowed text-white font-medium rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-800 flex items-center gap-2 ${
+                hasChanges ? "animate-pulse" : ""
+              }`}
+            >
+              <span>Save Settings</span>
+            </button>
           </div>
-        </AnimatedComponent>
-
-        <AnimatedComponent delay={0.2}>
-          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-lg p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Sliders className="text-blue-500" size={24} />
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
-                Additional Settings
-              </h2>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Shield className="text-green-500" size={20} />
-                  <label className="text-sm font-medium text-gray-700 dark:text-neutral-300">
-                    Enable Notifications
-                  </label>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="enableNotifications"
-                    checked={formData.enableNotifications}
-                    onChange={handleChange}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Clock className="text-purple-500" size={20} />
-                  <label className="text-sm font-medium text-gray-700 dark:text-neutral-300">
-                    Save Detection Images
-                  </label>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="saveDetectionImages"
-                    checked={formData.saveDetectionImages}
-                    onChange={handleChange}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-            </div>
-          </div>
-        </AnimatedComponent>
-      </div>
-
-      <AnimatedComponent delay={0.3}>
-        <div className="mt-6">
-          <button
-            onClick={handleSubmit}
-            className="w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-800"
-          >
-            Save Settings
-          </button>
         </div>
       </AnimatedComponent>
+
+      {saveSuccess && (
+        <AnimatedComponent>
+          <div className="mb-6 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-4 py-3 rounded-xl flex items-center gap-2">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path>
+            </svg>
+            <span>Settings saved successfully! They will be applied to future detection sessions.</span>
+          </div>
+        </AnimatedComponent>
+      )}
+
+      <div className="bg-white/90 dark:bg-neutral-800/90 rounded-2xl shadow-lg p-6 border border-gray-200/50 dark:border-neutral-700/50"
+        style={{
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)'
+        }}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {Object.keys(CONFIG).map(key => renderSettingControl(key))}
+        </div>
+      </div>
     </motion.div>
   );
 };

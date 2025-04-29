@@ -110,15 +110,15 @@ const Sidebar = () => {
       {/* Settings */}
       <div className="p-3 border-t border-gray-200/30 dark:border-neutral-700/30 mb-5">
         <Link
-          to="/settings"
+          to="/admin/settings"
           className={`relative flex items-center justify-center h-12 w-12 mx-auto rounded-xl
             transition-all duration-300 ease-in-out group
-            ${isActive('/settings')
+            ${isActive('/admin/settings')
               ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
               : 'text-gray-600 dark:text-neutral-400 hover:bg-gray-100/80 dark:hover:bg-neutral-700/50'
             }`}
           style={{
-            boxShadow: isActive('/settings') ? '0 2px 5px rgba(59, 130, 246, 0.1)' : 'none'
+            boxShadow: isActive('/admin/settings') ? '0 2px 5px rgba(59, 130, 246, 0.1)' : 'none'
           }}
         >
           <Settings 
