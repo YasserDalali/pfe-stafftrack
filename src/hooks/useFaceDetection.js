@@ -112,7 +112,10 @@ const useFaceDetection = () => {
           // Calculate match
           const match = calculateFaceMatch(detection.descriptor, descriptorsRef.current);
           
-          if (match.confidence > 0.6) {
+          // Use a consistent threshold from CONFIG
+          // const recognitionThreshold = 0.5; // Removed local variable
+
+          if (match.confidence > CONFIG.RECOGNITION_THRESHOLD) { // Use CONFIG.RECOGNITION_THRESHOLD
             // Draw green box for recognized face
             const employeeName = match.name || 'Unknown';
             new faceapi.draw.DrawBox(resizedDetection.detection.box, {
@@ -120,28 +123,23 @@ const useFaceDetection = () => {
               boxColor: '#00ff00'
             }).draw(canvas);
 
-            // Log attendance if confidence is high enough
-            if (match.confidence > 0.7) {
-              const logged = await logAttendance(match.label, match.confidence, {
-                box: resizedDetection.detection.box,
-                landmarks: resizedDetection.landmarks.positions,
-                descriptor: Array.from(detection.descriptor)
-              });
+            // Log attendance 
+            // (No separate confidence check needed here now)
+            const logged = await logAttendance(match.label, match.confidence);
 
-              if (logged) {
-                setAttendance(prev => [
-                  ...prev,
-                  {
-                    employeeId: match.label,
-                    name: match.name,
-                    timestamp: new Date().toISOString(),
-                    confidence: match.confidence
-                  }
-                ]);
-              }
+            if (logged) {
+              setAttendance(prev => [
+                ...prev,
+                {
+                  employeeId: match.label,
+                  name: match.name,
+                  timestamp: new Date().toISOString(),
+                  confidence: match.confidence
+                }
+              ]);
             }
           } else {
-            // Draw yellow box for unknown face
+            // Draw yellow box for unknown face or low confidence
             new faceapi.draw.DrawBox(resizedDetection.detection.box, {
               label: 'Unknown',
               boxColor: '#ffff00'

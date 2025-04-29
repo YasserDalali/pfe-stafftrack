@@ -1,7 +1,7 @@
 // Utility function to log attendance to Supabase
 import sb from '../database/supabase-client';
 
-export const logAttendance = async (employeeId, confidence, faceData) => {
+export const logAttendance = async (employeeId, confidence) => {
   try {
     console.log('🔄 Logging attendance for employee:', employeeId);
 
@@ -42,10 +42,9 @@ export const logAttendance = async (employeeId, confidence, faceData) => {
         {
           employee_id: employeeId,
           checkdate: now.toISOString(),
-          status: lateness > 0 ? 'late' : 'on_time',
+          status: 'present',
           lateness: lateness > 0 ? `${lateness} minutes` : null,
           confidence_score: confidence,
-          face_data: faceData
         },
       ])
       .select();

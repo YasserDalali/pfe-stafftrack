@@ -1,7 +1,8 @@
 import * as faceapi from 'face-api.js';
 
 export const CONFIG = {
-  MIN_CONFIDENCE: 0.8,
+  MIN_CONFIDENCE: 0.5,
+  RECOGNITION_THRESHOLD: 0.5,
   MIN_FACE_SIZE: 80,
   REQUIRED_CONSECUTIVE_DETECTIONS: 2,
   DETECTION_INTERVAL: 1000,
