@@ -1,7 +1,9 @@
+import * as faceapi from 'face-api.js';
 import React, { useState, useRef } from 'react';
 import supabase from '../database/supabase-client';
 import { v4 as uuidv4 } from 'uuid';
 import Webcam from 'react-webcam';
+import {generateFaceDescriptor} from '../utils/storageUtils';
 
 const AddEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
   const [formData, setFormData] = useState({
@@ -48,6 +50,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
       const res = await fetch(imageSrc);
       const blob = await res.blob();
       const file = new File([blob], 'webcam-photo.png', { type: 'image/png' });
+
       setAvatar(file);
       setIsUsingWebcam(false);
     }
@@ -57,12 +60,13 @@ const AddEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
+    
+    
     try {
       let avatarUrl = null;
-
       // Upload avatar if selected
       if (avatar) {
+
         const fileExt = avatar.name.split('.').pop();
         const fileName = `${uuidv4()}.${fileExt}`;
         const filePath = `${fileName}`;
@@ -81,13 +85,24 @@ const AddEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
 
         avatarUrl = publicUrl;
       }
-
+      await faceapi.nets.ssdMobilenetv1.loadFromUri('/models');
+      await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
+      await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
+        console.log(avatar);
+      const avatarDescriptor = await generateFaceDescriptor(avatar);
+      if (!avatarDescriptor) {
+        setError('No face detected in the uploaded image. Please use a clear face photo.');
+        setLoading(false);
+        return;
+      }
+      console.log('👤 Avatar descriptor:', avatarDescriptor);
       // Insert employee data
       const { data, error } = await supabase
         .from('employees')
         .insert([
           {
             ...formData,
+            avatar_descriptor: avatarDescriptor,
             avatar_url: avatarUrl,
             created_at: new Date().toISOString(),
             leave_balance: parseInt(formData.leave_balance) || 0,

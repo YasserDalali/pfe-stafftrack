@@ -153,29 +153,33 @@ export const processEmployeeAvatar = async (employee) => {
   }
 };
 
-export const generateFaceDescriptor = async (employeeWithImage) => {
+export const generateFaceDescriptor = async (file) => {
   try {
-    const { employee, image } = employeeWithImage;
-    console.log(`🔍 Detecting face for ${employee.name}`);
+    // Convert file to image
+    const imageUrl = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.src = imageUrl;
 
+    // Wait for the image to load
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+    });
+
+    // Now pass the loaded image element to face-api.js
     const detection = await faceapi
-      .detectSingleFace(image, new faceapi.SsdMobilenetv1Options({ 
-        minConfidence: 0.5 
-      }))
+      .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
       .withFaceLandmarks()
       .withFaceDescriptor();
 
+    URL.revokeObjectURL(imageUrl);
+
     if (!detection) {
-      console.log(`⚠️ No face detected in avatar for ${employee.name}`);
+      console.log(`⚠️ No face detected in avatar`);
       return null;
     }
 
-    console.log(`✅ Face descriptor generated for ${employee.name}`);
-    return {
-      employeeId: employee.id,
-      name: employee.name,
-      descriptor: detection.descriptor
-    };
+    return detection.descriptor;
   } catch (error) {
     console.error('❌ Error generating face descriptor:', error);
     return null;
@@ -197,14 +201,14 @@ export const buildEmployeeFaceDescriptors = async () => {
     const descriptors = await Promise.all(
       processedAvatars
         .filter(Boolean) // Remove null results
-        .map(avatar => generateFaceDescriptor(avatar))
+        .map(avatar => generateFaceDescriptor(avatar.image))
     );
 
     // Filter out failed detections and format results
     const validDescriptors = descriptors.filter(Boolean).reduce((acc, curr) => {
       acc[curr.employeeId] = {
         name: curr.name,
-        descriptors: [curr.descriptor]
+        descriptors: [curr]
       };
       return acc;
     }, {});
