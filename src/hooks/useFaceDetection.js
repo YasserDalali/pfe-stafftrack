@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path'; */
 import { logAttendance } from '../utils/logAttendance';
 import { buildEmployeeFaceDescriptors } from '../utils/storageUtils';
-import { initializeFaceApi, detectFace, calculateFaceMatchm  } from '../utils/faceDetectionUtils';
+import { initializeFaceApi, detectFace,   } from '../utils/faceDetectionUtils';
 import CONFIG from '../utils/CONFIG';
 const useFaceDetection = () => {
   const videoRef = useRef(null);

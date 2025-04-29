@@ -9,7 +9,6 @@ import AttendanceRateOverTime from '../charts/AttendanceRateOverTime';
 import AverageLatenessOverTime from '../charts/AverageLatenessOverTime';
 import EmployeeSatisfactionByDepartement from '../charts/EmployeeSatisfactionByDepartement';
 import LeaveRequestsByStatus from '../charts/LeaveRequestsByStatus';
-import TopAbsentees from '../charts/TopAbsentees';
 import WeeklyWorkHoursVsSalary from '../charts/WeeklyWorkHoursVsSalary';
 import LeavesTakenByType from '../charts/LeavesTakenByType';
 import NewHiresOverTime from '../charts/NewHiresOverTime';
@@ -175,18 +174,6 @@ const DashboardPage = () => {
             </p>
           </div>
         </AnimatedComponent>
-      {/* Stats Cards Toggle */}
-      <div className="flex gap-2 mb-4">
-        {['week', 'month', 'year'].map((p) => (
-          <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            className={`px-4 py-2 rounded-lg font-medium border transition-colors ${period === p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-neutral-700'}`}
-          >
-            {p.charAt(0).toUpperCase() + p.slice(1)}
-          </button>
-        ))}
-      </div>
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <AnimatedComponent delay={0.1}>
@@ -233,55 +220,6 @@ const DashboardPage = () => {
       </div>
 
 
-      <AnimatedComponent delay={0.6}>
-        {/* Recent Late Arrivals */}
-        <div className="mt-6 bg-white dark:bg-neutral-800 rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
-            Recent Late Arrivals
-          </h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-neutral-700">
-              <thead>
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">
-                    Employee
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">
-                    Arrival Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">
-                    Minutes Late
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-neutral-700">
-                {filteredAttendance
-                  .filter(record => record.lateness)
-                  .slice(0, 5)
-                  .map((record, index) => (
-                    <tr key={index}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {record.employee || 'Unknown Employee'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-neutral-400">
-                        {record.date || 'Unknown Date'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-neutral-400">
-                        {(record.details && record.details.includes('at ')) ? record.details.split('at ')[1] : 'Unknown Time'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-yellow-600">
-                        {(record.lateness && record.lateness.includes(':')) ? record.lateness.split(':')[1] + 'm' : '0m'}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </AnimatedComponent>
 
       {/* Custom Chart Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10">
@@ -300,10 +238,6 @@ const DashboardPage = () => {
         <div>
           <h3 className="text-lg font-semibold mb-2">Leave Requests by Status</h3>
           <LeaveRequestsByStatus />
-        </div>
-        <div>
-          <h3 className="text-lg font-semibold mb-2">Top Absentees</h3>
-          <TopAbsentees />
         </div>
         <div>
           <h3 className="text-lg font-semibold mb-2">Weekly Work Hours vs Salary</h3>
