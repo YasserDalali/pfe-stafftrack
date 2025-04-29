@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Sun, Moon } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 
 const Navbar = () => {
   const [darkMode, setDarkMode] = useState(false);
@@ -8,7 +9,7 @@ const Navbar = () => {
 
   // Get current page title based on route
   const getPageTitle = (pathname) => {
-    const path = pathname.split('/')[1];
+    const path = pathname.split('/')[2] || pathname.split('/')[1];
     if (!path) return 'Dashboard';
     return path.charAt(0).toUpperCase() + path.slice(1).replace('-', ' ');
   };
@@ -40,25 +41,45 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="fixed top-0 right-0 left-16 h-16 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700 z-40 transition-colors duration-200">
-      <div className="h-full px-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-800 dark:text-white transition-colors duration-200">
+    <motion.nav 
+      className="fixed top-0 right-0 left-18 w-full ps-20 h-16 bg-white/90 dark:bg-neutral-800/90 border-b border-gray-200/30 dark:border-neutral-700/30 z-40 transition-colors duration-200"
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      style={{
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+      }}
+    >
+      <div className="h-full px-6 flex items-center justify-between">
+        <motion.h1 
+          className="text-lg font-medium text-gray-800 dark:text-white transition-colors duration-200"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.1, duration: 0.3 }}
+        >
           {getPageTitle(location.pathname)}
-        </h1>
+        </motion.h1>
         
-        <button
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={toggleDarkMode}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-700 transition-all duration-200 text-gray-600 dark:text-gray-300"
+          className="p-2 rounded-full hover:bg-gray-100/80 dark:hover:bg-neutral-700/50 transition-all duration-200 text-gray-600 dark:text-gray-300"
           aria-label="Toggle dark mode"
+          style={{
+            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+          }}
         >
           {darkMode ? (
-            <Sun className="h-5 w-5 transition-transform duration-200 hover:rotate-12" />
+            <Sun className="h-5 w-5 transition-transform duration-300 hover:rotate-12" />
           ) : (
-            <Moon className="h-5 w-5 transition-transform duration-200 hover:-rotate-12" />
+            <Moon className="h-5 w-5 transition-transform duration-300 hover:-rotate-12" />
           )}
-        </button>
+        </motion.button>
       </div>
-    </nav>
+    </motion.nav>
   );
 };
 
