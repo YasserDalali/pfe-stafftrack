@@ -9,6 +9,7 @@ import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table
 import { Search } from 'lucide-react';
 import AnimatedTableRow from '../components/AnimatedTableRow';
 import EditModal from '../components/EditModal';
+import CONFIG from '../utils/CONFIG';
 
 const formatDate = (dateString) => {
   const date = new Date(dateString);
@@ -16,6 +17,18 @@ const formatDate = (dateString) => {
     dateStyle: 'medium',
     timeStyle: 'short'
   }).format(date);
+};
+
+// Function to determine if check-in time is late
+const isLate = (checkdate) => {
+  const date = new Date(checkdate);
+  const checkInHour = date.getHours();
+  const checkInMinute = date.getMinutes();
+  
+  // Compare with threshold from CONFIG
+  return (checkInHour > CONFIG.LATE_THRESHOLD_HOUR || 
+         (checkInHour === CONFIG.LATE_THRESHOLD_HOUR && 
+          checkInMinute > CONFIG.LATE_THRESHOLD_MINUTE));
 };
 
 const AttendancePage = () => {
@@ -74,15 +87,19 @@ const AttendancePage = () => {
       {
         Header: 'Status',
         accessor: 'status',
-        Cell: ({ value }) => (
-          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-            value === 'present'
-              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-              : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
-          }`}>
-            {value === 'present' ? 'On Time' : 'Late'}
-          </span>
-        ),
+        Cell: ({ value, row }) => {
+          // Determine attendance status: late or on time
+          const checkInStatus = isLate(row.original.checkdate) ? 'Late' : 'On Time';
+          return (
+            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+              checkInStatus === 'On Time'
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+            }`}>
+              {checkInStatus}
+            </span>
+          );
+        },
       },
       {
         Header: 'Lateness',
@@ -180,7 +197,7 @@ const AttendancePage = () => {
               On Time
             </h3>
             <p className="text-3xl font-bold text-green-600">
-              {attendanceRecords.filter(record => record.status === 'present').length}
+              {attendanceRecords.filter(record => !isLate(record.checkdate)).length}
             </p>
           </div>
         </AnimatedComponent>
@@ -191,7 +208,7 @@ const AttendancePage = () => {
               Late
             </h3>
             <p className="text-3xl font-bold text-yellow-600">
-              {attendanceRecords.filter(record => record.status === 'absent').length}
+              {attendanceRecords.filter(record => isLate(record.checkdate)).length}
             </p>
           </div>
         </AnimatedComponent>
@@ -230,12 +247,33 @@ const AttendancePage = () => {
           setEditLoading(true);
           setEditError(null);
           try {
+            // Only include fields that exist in the database schema
+            const updateValues = {
+              employee_id: values.employee_id,
+              checkdate: values.checkdate,
+              status: values.status,
+              lateness: values.lateness
+            };
+            
             const { error } = await supabase
               .from('attendance')
-              .update(values)
+              .update(updateValues)
               .eq('id', editModal.record.id);
+              
             if (error) throw error;
-            setAttendanceRecords((prev) => prev.map(r => r.id === editModal.record.id ? { ...r, ...values } : r));
+            
+            // Update the local state for UI
+            setAttendanceRecords((prev) => prev.map(r => {
+              if (r.id === editModal.record.id) {
+                return { 
+                  ...r, 
+                  ...updateValues,
+                  employee_name: employees.find(e => e.id.toString() === values.employee_id.toString())?.name || r.employee_name 
+                };
+              }
+              return r;
+            }));
+            
             setEditModal({ open: false, record: null });
           } catch (err) {
             setEditError('Failed to update attendance. ' + (err.message || ''));

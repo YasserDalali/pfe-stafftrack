@@ -1,6 +1,6 @@
 // Utility function to log attendance to Supabase
 import sb from '../database/supabase-client';
-
+import  CONFIG  from '../utils/CONFIG';
 export const logAttendance = async (employeeId, confidence) => {
   try {
     console.log('🔄 Logging attendance for employee:', employeeId);
@@ -31,7 +31,8 @@ export const logAttendance = async (employeeId, confidence) => {
 
     const now = new Date();
     const startTime = new Date(now);
-    startTime.setHours(9, 0, 0, 0);
+    // Use values from CONFIG
+    startTime.setHours(CONFIG.LATE_THRESHOLD_HOUR, CONFIG.LATE_THRESHOLD_MINUTE, 0, 0);
 
     const lateness = now > startTime ? Math.floor((now - startTime) / (1000 * 60)) : 0;
 

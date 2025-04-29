@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import supabase from '../database/supabase-client';
+import CONFIG from '../utils/CONFIG';
 
 const AttendanceForm = ({ isOpen, onClose, employees }) => {
   const [formData, setFormData] = useState({
     employee_id: '',
     checkdate: new Date().toISOString().slice(0, 16), // Format: YYYY-MM-DDTHH:mm
-    status: 'on_time'
   });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -39,21 +39,21 @@ const AttendanceForm = ({ isOpen, onClose, employees }) => {
         return;
       }
 
-      // Calculate lateness
+      // Calculate lateness using CONFIG values
       const checkTime = new Date(formData.checkdate);
       const startTime = new Date(checkTime);
-      startTime.setHours(9, 0, 0, 0); // Assuming work starts at 9 AM
+      startTime.setHours(CONFIG.LATE_THRESHOLD_HOUR, CONFIG.LATE_THRESHOLD_MINUTE, 0, 0);
       const lateness = checkTime > startTime ? Math.floor((checkTime - startTime) / (1000 * 60)) : 0;
-      // Use 'present' if on time, 'absent' if late (schema only allows these two)
-      const status = lateness > 0 ? 'absent' : 'present';
+      
       // Insert new attendance record
+      // Use 'present' for the status, which matches the table's check constraint
       const { data: insertData, error: insertError } = await supabase
         .from('attendance')
         .insert([
           {
             employee_id: formData.employee_id,
             checkdate: formData.checkdate,
-            status,
+            status: 'present', // Always set to 'present' to satisfy the schema constraint
             lateness: lateness > 0 ? `${lateness} minutes` : null
           }
         ])
@@ -64,8 +64,7 @@ const AttendanceForm = ({ isOpen, onClose, employees }) => {
         onClose();
         setFormData({
           employee_id: '',
-          checkdate: new Date().toISOString().slice(0, 16),
-          status: 'on_time'
+          checkdate: new Date().toISOString().slice(0, 16)
         });
       } else {
         setError('Failed to record attendance. Please try again.');

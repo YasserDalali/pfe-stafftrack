@@ -1,17 +1,6 @@
 import * as faceapi from 'face-api.js';
+import  CONFIG  from './CONFIG';
 
-export const CONFIG = {
-  MIN_CONFIDENCE: 0.5,
-  RECOGNITION_THRESHOLD: 0.5,
-  MIN_FACE_SIZE: 80,
-  REQUIRED_CONSECUTIVE_DETECTIONS: 2,
-  DETECTION_INTERVAL: 1000,
-  MAX_ANGLE: 25,
-  MIN_BRIGHTNESS: 0.3,
-  MIN_FACE_SCORE: 0.3,
-  MAX_DETECTION_DISTANCE: 0.7,
-  MIN_LANDMARKS_VISIBILITY: 0,
-};
 
 export const initializeFaceApi = async () => {
   try {
