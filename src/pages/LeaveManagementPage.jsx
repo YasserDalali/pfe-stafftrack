@@ -2,27 +2,21 @@ import React, { useState } from 'react';
 
 import AnimatedComponent from '../components/AnimatedComponent';
 import LeaveManagementTable from '../components/LeaveManagementTable';
-import LeaveCalendar from '../components/LeaveCalendar';
+import LeaveCalendarView from '../components/LeaveCalendarView';
 import LeaveForm from '../components/LeaveForm';
 import { useFetchLeaves } from '../hooks/useFetchLeaves';
 import { useFetchEmployees } from '../hooks/useFetchEmployees';
-import { useFetchAbsences } from '../hooks/useFetchAbsences';
 
 const LeaveManagement = () => {
   const [isLeaveFormOpen, setIsLeaveFormOpen] = useState(false);
   const { leaves, loading: loadingLeaves, error: errorLeaves, refetchLeaves } = useFetchLeaves();
   const { employees, loading: loadingEmployees, error: errorEmployees } = useFetchEmployees();
-  const { absences, loading: loadingAbsences, error: errorAbsences, refetchAbsences } = useFetchAbsences();
 
   const handleLeaveSubmitted = async () => {
-    // Refresh both leaves and absences data
-    await Promise.all([
-      refetchLeaves(),
-      refetchAbsences()
-    ]);
+    await refetchLeaves();
   };
 
-  if (loadingLeaves || loadingEmployees || loadingAbsences) {
+  if (loadingLeaves || loadingEmployees) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
@@ -30,16 +24,20 @@ const LeaveManagement = () => {
     );
   }
 
-  if (errorLeaves || errorEmployees || errorAbsences) {
+  const combinedError = errorLeaves || errorEmployees;
+  if (combinedError) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-red-800 dark:text-red-200">
           <h3 className="text-lg font-semibold">Error Loading Data</h3>
-          <p>{errorLeaves || errorEmployees || errorAbsences}</p>
+          <p>{typeof combinedError === 'string' ? combinedError : combinedError.message}</p>
         </div>
       </div>
     );
   }
+
+  const pendingRequests = leaves.filter(req => req.status === 'Pending').length;
+  const approvedLeaves = leaves.filter(req => req.status === 'Approved').length;
 
   return (
     <div className="p-6">
@@ -57,7 +55,6 @@ const LeaveManagement = () => {
         </div>
       </AnimatedComponent>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <AnimatedComponent delay={0.1}>
           <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-lg p-6">
@@ -76,7 +73,7 @@ const LeaveManagement = () => {
               Pending Requests
             </h3>
             <p className="text-3xl font-bold text-yellow-600">
-              {leaves.filter(req => req.status === 'Pending').length}
+              {pendingRequests}
             </p>
           </div>
         </AnimatedComponent>
@@ -87,13 +84,12 @@ const LeaveManagement = () => {
               Approved Leaves
             </h3>
             <p className="text-3xl font-bold text-green-600">
-              {leaves.filter(req => req.status === 'Approved').length}
+              {approvedLeaves}
             </p>
           </div>
         </AnimatedComponent>
       </div>
 
-      {/* Leave Form Modal */}
       <LeaveForm
         isOpen={isLeaveFormOpen}
         onClose={() => setIsLeaveFormOpen(false)}
@@ -101,12 +97,10 @@ const LeaveManagement = () => {
         onSuccess={handleLeaveSubmitted}
       />
 
-      {/* Leave Management Table */}
       <LeaveManagementTable leaveData={leaves} employees={employees} />
 
-      {/* Calendar View */}
       <div className="mt-6">
-        <LeaveCalendar absences={absences} />
+        <LeaveCalendarView />
       </div>
     </div>
   );

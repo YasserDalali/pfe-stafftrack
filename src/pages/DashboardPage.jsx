@@ -4,7 +4,9 @@ import { motion } from 'framer-motion';
 import AnimatedComponent from '../components/AnimatedComponent';
 import AIReportModal from '../components/AIReportModal';
 import AIReportConfirmModal from '../components/AIReportConfirmModal';
+import EnhancedReportModal from '../components/EnhancedReportModal';
 import { generateAIReport } from '../utils/ReportAIAnalyse';
+import { generateEnhancedReport } from '../utils/enhancedReportGenerator';
 import AttendanceRateOverTime from '../charts/AttendanceRateOverTime';
 import AverageLatenessOverTime from '../charts/AverageLatenessOverTime';
 import EmployeeSatisfactionByDepartement from '../charts/EmployeeSatisfactionByDepartement';
@@ -22,12 +24,16 @@ const REPORTS_STORAGE_KEY = 'ai_reports_usage';
 const DashboardPage = () => {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [isEnhancedReportModalOpen, setIsEnhancedReportModalOpen] = useState(false);
   const [reportData, setReportData] = useState(null);
+  const [enhancedReportData, setEnhancedReportData] = useState(null);
   const [reportsLeft, setReportsLeft] = useState(MAX_DAILY_REPORTS);
   const [isCachedData, setIsCachedData] = useState(false);
   const [attendance, setAttendance] = useState([]);
   const [period, setPeriod] = useState('week');
   const [loadingStats, setLoadingStats] = useState(true);
+  const [reportType, setReportType] = useState('standard'); // 'standard' or 'enhanced'
+  const [isGeneratingEnhancedReport, setIsGeneratingEnhancedReport] = useState(false);
 
   useEffect(() => {
     // Load and check reports usage
@@ -65,26 +71,52 @@ const DashboardPage = () => {
 
   const handleGenerateReport = async () => {
     setIsConfirmModalOpen(false);
-    setIsReportModalOpen(true);
-    setReportData(null);
-    setIsCachedData(false);
-
-    try {
-      const startTime = Date.now();
-      const report = await generateAIReport();
-      const endTime = Date.now();
-
-      // If response time is very quick, it's likely cached data
-      setIsCachedData(endTime - startTime < 500);
-      setReportData(report);
-
-      // Only update usage if it's not cached data
-      if (!isCachedData) {
+    console.log(`Generating ${reportType} report...`);
+    
+    if (reportType === 'enhanced') {
+      // Generate enhanced report
+      setIsEnhancedReportModalOpen(true);
+      setIsGeneratingEnhancedReport(true);
+      setEnhancedReportData(null);
+      
+      try {
+        console.log('Calling generateEnhancedReport API...');
+        const report = await generateEnhancedReport();
+        console.log('Enhanced report generation successful!', report);
+        setEnhancedReportData(report);
         updateReportsUsage();
+      } catch (error) {
+        console.error('Error generating enhanced report:', error);
+        alert('Failed to generate enhanced report. Please try again later.');
+      } finally {
+        setIsGeneratingEnhancedReport(false);
       }
-    } catch (error) {
-      console.error('Error generating report:', error);
-      // You might want to show an error message to the user here
+    } else {
+      // Generate standard report
+      setIsReportModalOpen(true);
+      setReportData(null);
+      setIsCachedData(false);
+
+      try {
+        console.log('Calling generateAIReport API...');
+        const startTime = Date.now();
+        const report = await generateAIReport();
+        const endTime = Date.now();
+
+        // If response time is very quick, it's likely cached data
+        const isCached = endTime - startTime < 500;
+        setIsCachedData(isCached);
+        console.log('Standard report generation successful!', { isCached, report });
+        setReportData(report);
+
+        // Only update usage if it's not cached data
+        if (!isCached) {
+          updateReportsUsage();
+        }
+      } catch (error) {
+        console.error('Error generating standard report:', error);
+        alert('Failed to generate standard report. Please try again later.');
+      }
     }
   };
 
@@ -164,6 +196,14 @@ const DashboardPage = () => {
           style={{
             backdropFilter: 'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)'
+          }}
+          role="button"
+          aria-label="Generate AI Report"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              setIsConfirmModalOpen(true);
+            }
           }}
         >
           <div className="flex items-center justify-between">
@@ -298,6 +338,8 @@ const DashboardPage = () => {
           onClose={() => setIsConfirmModalOpen(false)}
           onConfirm={handleGenerateReport}
           reportsLeft={reportsLeft}
+          setReportType={setReportType}
+          reportType={reportType}
         />
       )}
 
@@ -309,6 +351,14 @@ const DashboardPage = () => {
           isCachedData={isCachedData}
         />
       )}
+      
+      {/* Enhanced Report Modal */}
+      <EnhancedReportModal 
+        isOpen={isEnhancedReportModalOpen}
+        onClose={() => setIsEnhancedReportModalOpen(false)}
+        reportData={enhancedReportData}
+        loading={isGeneratingEnhancedReport}
+      />
     </motion.div>
   );
 };

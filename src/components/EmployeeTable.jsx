@@ -1,45 +1,15 @@
 import React from 'react';
 import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
-import { ArrowDown, ArrowUp, ArrowUpDown, Search, Trash, User } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Search, Edit, Trash, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import AnimatedComponent from './AnimatedComponent';
 import AnimatedTableRow from './AnimatedTableRow';
-import ModalButton from './Modal';
-import ProfilePage from '../pages/ProfilePage';
 import supabase from '../database/supabase-client';
-import WarningModal from './WarningModal';
-import EditModal from './EditModal';
 
 const defaultAvatar = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
 
-const EmployeeTable = ({ employees, onDelete }) => {
-  const [deletingId, setDeletingId] = React.useState(null);
-  const [deleteError, setDeleteError] = React.useState(null);
-  const [warningModal, setWarningModal] = React.useState({ open: false, employee: null });
-  const [editModal, setEditModal] = React.useState({ open: false, employee: null });
-  const [editLoading, setEditLoading] = React.useState(false);
-  const [editError, setEditError] = React.useState(null);
-
-  const handleDelete = async (id) => {
-    setDeletingId(id);
-    setDeleteError(null);
-    try {
-      const { error } = await supabase.from('employees').delete().eq('id', id);
-      if (error) throw error;
-      if (onDelete) {
-        onDelete(id);
-      } else {
-        window.location.reload();
-      }
-    } catch (err) {
-      setDeleteError('Failed to delete employee. ' + (err.message || ''));
-    } finally {
-      setDeletingId(null);
-      setWarningModal({ open: false, employee: null });
-    }
-  };
-
+const EmployeeTable = ({ employees, onEdit, onDelete, isDeleting, isEditing }) => {
   const data = React.useMemo(() => employees, [employees]);
 
   const columns = React.useMemo(
@@ -88,35 +58,49 @@ const EmployeeTable = ({ employees, onDelete }) => {
       {
         Header: 'Actions',
         accessor: 'actions',
-        Cell: ({ row }) => (
-          <div className="flex space-x-2">
-            <button
-              className={`text-blue-600 hover:text-blue-800 flex items-center`}
-              onClick={() => setEditModal({ open: true, employee: row.original })}
-              title="Edit employee"
-            >
-              Edit
-            </button>
-            <button
-              className={`text-red-600 hover:text-red-800 flex items-center ${deletingId === row.original.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-              onClick={() => setWarningModal({ open: true, employee: row.original })}
-              disabled={deletingId === row.original.id}
-              title="Delete employee"
-            >
-              {deletingId === row.original.id ? (
-                <svg className="animate-spin h-5 w-5 mr-1 text-red-600" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                </svg>
-              ) : (
-                <Trash size={20} />
-              )}
-            </button>
-          </div>
-        ),
+        Cell: ({ row }) => {
+          const employeeId = row.original.id;
+          const currentlyDeleting = isDeleting === employeeId;
+          const currentlyEditing = isEditing === employeeId;
+
+          return (
+            <div className="flex space-x-2">
+              <button
+                className={`p-1 rounded text-blue-600 hover:text-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-wait`}
+                onClick={() => !currentlyEditing && onEdit(row.original)}
+                disabled={currentlyEditing || currentlyDeleting}
+                title="Edit employee"
+              >
+                {currentlyEditing ? (
+                  <svg className="animate-spin h-5 w-5 text-blue-600" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                ) : (
+                  <Edit size={16} />
+                )}
+              </button>
+              <button
+                className={`p-1 rounded text-red-600 hover:text-red-800 hover:bg-red-100 dark:hover:bg-red-900/50 disabled:opacity-50 disabled:cursor-wait`}
+                onClick={() => !currentlyDeleting && onDelete(employeeId)}
+                disabled={currentlyDeleting || currentlyEditing}
+                title="Delete employee"
+              >
+                {currentlyDeleting ? (
+                  <svg className="animate-spin h-5 w-5 text-red-600" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                ) : (
+                  <Trash size={16} />
+                )}
+              </button>
+            </div>
+          );
+        },
       },
     ],
-    [deletingId]
+    [onEdit, onDelete, isDeleting, isEditing]
   );
 
   const {
@@ -156,72 +140,9 @@ const EmployeeTable = ({ employees, onDelete }) => {
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Employee List
           </h3>
-          {deleteError && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-              <p className="text-red-600 dark:text-red-400 text-sm">{deleteError}</p>
-            </div>
-          )}
-          <WarningModal
-            isOpen={warningModal.open}
-            title="Delete Employee"
-            message={warningModal.employee ? `Are you sure you want to delete ${warningModal.employee.name}? This action cannot be undone.` : ''}
-            confirmLabel={deletingId === (warningModal.employee && warningModal.employee.id) ? 'Deleting...' : 'Delete'}
-            cancelLabel="Cancel"
-            loading={deletingId === (warningModal.employee && warningModal.employee.id)}
-            onConfirm={() => warningModal.employee && handleDelete(warningModal.employee.id)}
-            onCancel={() => setWarningModal({ open: false, employee: null })}
-          />
-
-          <EditModal
-            isOpen={editModal.open}
-            title="Edit Employee"
-            fields={[
-              { name: 'name', label: 'Name', type: 'text', required: true },
-              { name: 'email', label: 'Email', type: 'email', required: true, pattern: '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' },
-              { name: 'position', label: 'Position', type: 'text' },
-              { name: 'departement', label: 'Department', type: 'text' },
-              { name: 'hire_date', label: 'Hire Date', type: 'date' },
-              { name: 'leave_balance', label: 'Leave Balance', type: 'number', min: 0 },
-              { name: 'monthly_salary', label: 'Monthly Salary', type: 'number', min: 0, step: '0.01' },
-              { name: 'weekly_work_hours', label: 'Weekly Work Hours', type: 'number', min: 0, step: '0.1' },
-              { name: 'satisfaction_rate', label: 'Satisfaction Rate', type: 'number', min: 0, max: 100 },
-              { name: 'notes', label: 'Notes', type: 'textarea' },
-              { name: 'avatar_url', label: 'Avatar URL', type: 'url' },
-            ]}
-            initialValues={editModal.employee || {}}
-            loading={editLoading}
-            error={editError}
-            onClose={() => setEditModal({ open: false, employee: null })}
-            onSubmit={async (values) => {
-              setEditLoading(true);
-              setEditError(null);
-              try {
-                const { error } = await supabase
-                  .from('employees')
-                  .update(values)
-                  .eq('id', editModal.employee.id);
-                if (error) throw error;
-                if (onDelete) {
-                  // If parent manages state, trigger a refetch or update
-                  setEditModal({ open: false, employee: null });
-                  window.location.reload();
-                } else {
-                  // Update local state
-                  editModal.employee && Object.assign(editModal.employee, values);
-                  setEditModal({ open: false, employee: null });
-                }
-              } catch (err) {
-                setEditError('Failed to update employee. ' + (err.message || ''));
-              } finally {
-                setEditLoading(false);
-              }
-            }}
-          />
-
           <div className="flex flex-col">
             <div className="-m-1.5 overflow-x-auto">
               <div className="p-1.5 min-w-full inline-block align-middle">
-                {/* Search bar */}
                 <div className="mb-4">
                   <div className="relative">
                     <input
@@ -235,7 +156,6 @@ const EmployeeTable = ({ employees, onDelete }) => {
                   </div>
                 </div>
 
-                {/* Table */}
                 <div className="overflow-hidden border border-gray-200 dark:border-neutral-700 rounded-lg">
                   <table {...getTableProps()} className="min-w-full divide-y divide-gray-200 dark:divide-neutral-700">
                     <thead>
@@ -281,7 +201,6 @@ const EmployeeTable = ({ employees, onDelete }) => {
                   </table>
                 </div>
 
-                {/* Pagination */}
                 <div className="flex items-center justify-between py-3 mt-4">
                   <div className="flex items-center space-x-2">
                     <select

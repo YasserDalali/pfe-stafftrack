@@ -1,7 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import useFaceDetection from "../hooks/useFaceDetection";
 import LoadingSpinner from "../components/LoadingSpinner";
-
+import EnhancedReportModal from "../components/EnhancedReportModal";
+import { generateEnhancedReport } from "../utils/enhancedReportGenerator";
 
 function FaceDetection() {
   const referenceImages = {
@@ -13,6 +14,9 @@ function FaceDetection() {
 
   // Keep track of attendance records with their screenshots
   const [attendanceWithScreenshots, setAttendanceWithScreenshots] = useState([]);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   const { videoRef, canvasRef, attendance, loading, isProcessing, resetProcessingState } = useFaceDetection();
 
@@ -85,6 +89,22 @@ function FaceDetection() {
     }
   };
 
+  const handleGenerateReport = async () => {
+    try {
+      setIsReportModalOpen(true);
+      setIsGeneratingReport(true);
+      setReportData(null);
+      
+      const report = await generateEnhancedReport();
+      setReportData(report);
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert('Failed to generate report. Please try again later.');
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
   return (
     <div className="app bg-black">
       
@@ -110,6 +130,31 @@ function FaceDetection() {
           Processing...
         </div>
       )}
+      
+      {/* Generate Report Button */}
+      <button
+        onClick={handleGenerateReport}
+        className="absolute top-5 left-5 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-lg flex items-center transition-colors"
+        disabled={isGeneratingReport}
+      >
+        {isGeneratingReport ? (
+          <>
+            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Generating...
+          </>
+        ) : (
+          <>
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Generate HR Report
+          </>
+        )}
+      </button>
+      
       <table className="absolute bottom-10 left-[6%] z-20 bg-white border rounded-lg border-gray-300 shadow-lg w-[90%]">
         <thead>
           <tr className="bg-gray-100">
@@ -154,6 +199,14 @@ function FaceDetection() {
           )}
         </tbody>
       </table>
+      
+      {/* Enhanced Report Modal */}
+      <EnhancedReportModal 
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        reportData={reportData}
+        loading={isGeneratingReport}
+      />
     </div>
   );
 }
