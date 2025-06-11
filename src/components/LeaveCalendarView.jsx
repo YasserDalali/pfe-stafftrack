@@ -19,30 +19,22 @@ const localizer = dateFnsLocalizer({
 
 // --- Styling Function for Events ---
 // Consider leave status as well if needed
+const leaveTypeColors = {
+  'sick leave': 'bg-red-100 border-red-300 text-red-800 dark:bg-red-900/30 dark:border-red-700/50 dark:text-red-200',
+  'vacation': 'bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-900/30 dark:border-blue-700/50 dark:text-blue-200',
+  'personal': 'bg-yellow-100 border-yellow-300 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200',
+  'other': 'bg-purple-100 border-purple-300 text-purple-800 dark:bg-purple-900/30 dark:border-purple-700/50 dark:text-purple-200',
+};
 const getEventStyle = (event) => {
+  const type = (event.leaveType || 'other').toLowerCase().trim();
   let className = 'p-1 rounded-lg border text-xs overflow-hidden shadow-sm ';
-  
-  // Base color by type
-  switch (event.leaveType?.toLowerCase()) {
-    case 'sick leave':
-      className += 'bg-red-100 border-red-300 text-red-800 dark:bg-red-900/30 dark:border-red-700/50 dark:text-red-200';
-      break;
-    case 'vacation':
-      className += 'bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-900/30 dark:border-blue-700/50 dark:text-blue-200';
-      break;
-    case 'personal':
-      className += 'bg-yellow-100 border-yellow-300 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200';
-      break;
-    default:
-      className += 'bg-purple-100 border-purple-300 text-purple-800 dark:bg-purple-900/30 dark:border-purple-700/50 dark:text-purple-200';
-      break;
-  }
+  className += leaveTypeColors[type] || leaveTypeColors['other'];
 
   // Adjust style based on status (optional)
   if (event.status?.toLowerCase() === 'pending') {
-    className += ' opacity-70 italic'; // Example: Make pending leaves slightly faded
+    className += ' opacity-70 italic';
   } else if (event.status?.toLowerCase() === 'rejected') {
-    className += ' line-through opacity-50'; // Example: Strike through rejected leaves
+    className += ' line-through opacity-50';
   }
 
   return { className };
@@ -91,18 +83,26 @@ const LeaveCalendarView = () => {
         // Format data for react-big-calendar
         const formattedEvents = data.map(leave => {
           const startDate = new Date(leave.start_date);
-          // react-big-calendar's end date is exclusive, so add 1 day if it's an all-day event
-          const endDate = addDays(new Date(leave.end_date), 1); 
+          let endDate = new Date(leave.end_date);
+          // If start and end are the same, don't add a day
+          if (
+            startDate.toDateString() === endDate.toDateString()
+          ) {
+            // Do nothing, single day event
+          } else {
+            // For multi-day, add 1 day to make end exclusive
+            endDate = addDays(endDate, 1);
+          }
 
           return {
             id: leave.id,
-            title: `${leave.employees?.name || 'N/A'} - ${leave.type}`, // Use joined name
+            title: `${leave.employees?.name || 'N/A'} - ${leave.type}`,
             start: startDate,
             end: endDate,
-            allDay: true, // Assuming leaves are typically whole days
+            allDay: true,
             leaveType: leave.type,
             status: leave.status,
-            employeeName: leave.employees?.name || 'N/A', // Store for custom component
+            employeeName: leave.employees?.name || 'N/A',
             employeeId: leave.employee_id,
           };
         });
