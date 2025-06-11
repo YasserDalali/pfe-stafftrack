@@ -9,20 +9,20 @@ export default function Hero() {
                 <div className='w-full sticky z-20'>
 
 
- <p className='uppercase font-extrabold text-center text-zinc-500 tracking-wider'>Introducing StaffTrack</p>
-                <h1 className=' font-black text-5xl text-center my-4 md:text-6xl lg:text-8xl lg:max-w-5xl mx-auto '>The Future of Attendance Tracking</h1>
-                <p className='text-center text-xl md:text-2xl mx-auto max-w-xl text-zinc-400'>Every minute counts! Streamline your workplace attendance with AI-driven analysis and metrics</p>
-                <div className="flex justify-center">
-                    <ButtonLanding className={"mt-10 px-10"}></ButtonLanding>
-                </div>
+                    <p className='uppercase font-extrabold text-center text-zinc-500 tracking-wider'>Introducing StaffTrack</p>
+                    <h1 className=' font-black text-5xl text-center my-4 md:text-6xl lg:text-8xl lg:max-w-5xl mx-auto '>The Future of Attendance Tracking</h1>
+                    <p className='text-center text-xl md:text-2xl mx-auto max-w-xl text-zinc-400'>Every minute counts! Streamline your workplace attendance with AI-driven analysis and metrics</p>
+                    <div className="flex justify-center">
+                        <ButtonLanding className={"mt-10 px-10"} ></ButtonLanding>
+                    </div>
 
 
 
 
 
                 </div>
-            
-   
+
+
                 <div className="flex justify-center mt-24">
 
 

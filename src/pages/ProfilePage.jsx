@@ -157,12 +157,12 @@ const ProfilePage = () => {
             </h3>
             <div className="flex items-center">
               <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
-                {employeeData.satisfaction_rate}%
+                {employeeData.satisfaction_rate*10}%
               </p>
               <div className="ml-3 flex-1 bg-gray-200 dark:bg-neutral-700 rounded-full h-2">
                 <div
                   className="bg-yellow-500 h-2 rounded-full"
-                  style={{ width: `${employeeData.satisfaction_rate}%` }}
+                  style={{ width: `${employeeData.satisfaction_rate*10}%` }}
                 />
               </div>
             </div>
