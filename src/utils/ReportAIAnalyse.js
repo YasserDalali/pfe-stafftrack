@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import sb from '../database/supabase-client';
+import { getReportCache } from "./aiReportCaching";
 
 // Get employee and attendance data
 export const employeeRecords = async () => {
@@ -22,68 +23,27 @@ export const employeeRecords = async () => {
         return { employees: [], attendance: [] };
     }
 };
-
-export const attendanceRecords = async () => {
-    try {
-        const { data: attendance, error: attendanceError } = await sb
-            .from('attendance')
-            .select(`*`);
-        return attendance;
-    } catch (error) {
-        console.error('Error fetching attendance records:', error);
-        return { attendance: [] };
-    }
-}
-
+/* --------------------------------------------------------------- */
 // Get API key from environment variables
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 if (!API_KEY) {
+    alert("VITE_GEMINI_API_KEY is not set in environment variables");
     throw new Error('VITE_GEMINI_API_KEY is not set in environment variables');
 }
 
 const genAI = new GoogleGenerativeAI(API_KEY);
 
-const REPORT_CACHE_KEY = 'ai_report_cache';
-
-// Helper function to get cache data
-const getReportCache = () => {
-    try {
-        return JSON.parse(localStorage.getItem(REPORT_CACHE_KEY) || '{}');
-    } catch {
-        return {};
-    }
-};
-
-// Helper function to save cache data
-const saveReportCache = (data, employeeData) => {
-    const cache = {
-        timestamp: Date.now(),
-        data,
-        employeeDataHash: JSON.stringify(employeeData)
-    };
-    localStorage.setItem(REPORT_CACHE_KEY, JSON.stringify(cache));
-};
-
-// Helper function to check if cache is valid
-const isCacheValid = (cache, currentData) => {
-    if (!cache.timestamp || !cache.data || !cache.employeeDataHash) return false;
-
-    // Check if data is from today
-    const today = new Date().toDateString();
-    const cacheDate = new Date(cache.timestamp).toDateString();
-    if (today !== cacheDate) return false;
-
-    // Check if employee data has changed
-    return cache.employeeDataHash === JSON.stringify(currentData);
-};
 
 export const generateAIReport = async () => {
     try {
         // Get employee data first
         const employeeData = await employeeRecords();
-        const attendanceData = await attendanceRecords();
-        console.log('Retrieved employee data:', employeeData);
+        console.log('Retrieved employee data :', employeeData.employees);
+        console.log('Retrieved employee attendance :', employeeData.attendance);
+
+        const cacheValid = isCacheValid(getReportCache, employeeData);
+        if (!cacheValid) {throw Error("Cache exists, no need to rerun")}
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const prompt = `Analyze this employee data and provide insights focusing on:
@@ -131,4 +91,4 @@ Instructions:
         console.error("Error generating AI report:", error);
         throw error;
     }
-};
+}
