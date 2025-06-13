@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import sb from '../database/supabase-client';
-import { getReportCache } from "./aiReportCaching";
+import { getReportCache, isCacheValid, saveReportCache } from "./aiReportCaching";
 
 // Get employee and attendance data
 export const employeeRecords = async () => {
@@ -11,7 +11,15 @@ export const employeeRecords = async () => {
 
         const { data: attendance, error: attendanceError } = await sb
             .from('attendance')
-            .select(`*`);
+            .select(`
+                id,
+                employee_id,
+                checkdate,
+                status,
+                confidence_score,
+                created_at,
+                updated_at
+            `);
 
         if (employeeError) throw employeeError;
         if (attendanceError) throw attendanceError;
@@ -28,7 +36,7 @@ export const employeeRecords = async () => {
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 if (!API_KEY) {
-    alert("VITE_GEMINI_API_KEY is not set in environment variables");
+    console.error("VITE_GEMINI_API_KEY is not set in environment variables");
     throw new Error('VITE_GEMINI_API_KEY is not set in environment variables');
 }
 
@@ -39,11 +47,24 @@ export const generateAIReport = async () => {
     try {
         // Get employee data first
         const employeeData = await employeeRecords();
-        console.log('Retrieved employee data :', employeeData.employees);
-        console.log('Retrieved employee attendance :', employeeData.attendance);
+        console.log('Retrieved employee data:', employeeData.employees);
+        console.log('Retrieved employee attendance:', employeeData.attendance);
 
-        const cacheValid = isCacheValid(getReportCache, employeeData);
-        if (!cacheValid) {throw Error("Cache exists, no need to rerun")}
+        // Check if we have valid data
+        if (!employeeData.employees.length || !employeeData.attendance.length) {
+            throw new Error('No employee or attendance data available');
+        }
+
+        // Try to get cached report
+        const cache = getReportCache();
+        
+        // Validate cache with current data
+        if (cache && isCacheValid(cache, employeeData)) {
+            console.log('✅ Returning cached AI report');
+            return cache.data;
+        }
+
+        console.log('Generating new AI report...');
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const prompt = `Analyze this employee data and provide insights focusing on:
@@ -53,8 +74,8 @@ export const generateAIReport = async () => {
 4. Workload Balance: Analyze overtime and absenteeism
 5. Engagement Levels: Use satisfaction and feedback metrics
 
-Data Employees: ${JSON.stringify(employeeData)}
-Data Attendance: ${JSON.stringify(attendanceData)}
+Data Employees: ${JSON.stringify(employeeData.employees)}
+Data Attendance: ${JSON.stringify(employeeData.attendance)}
 
 Return ONLY a valid JSON object with this structure (no markdown, no backticks, no json keyword):
 {
@@ -81,6 +102,7 @@ Instructions:
 
         try {
             const response = JSON.parse(cleanJson);
+            // Save the new report to cache
             saveReportCache(response, employeeData);
             return response;
         } catch (parseError) {

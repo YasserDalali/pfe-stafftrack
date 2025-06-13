@@ -5,12 +5,12 @@
 
 ## Manuel d'utilisation
 
-1. **Prérequis** :
+1. **Prérequi** :
    - Accès à l'application (interface Leave Management)
    - Compte Supabase configuré (variables `.env`)
    - Employés existants dans la base
 
-2. **Démarrage** :
+2. **Démarrages** :
    - Accéder à la page "Leave Management"
    - Visualiser les demandes, planifier un congé, consulter le calendrier
    - Utiliser le bouton "Plan Leave" pour créer une nouvelle demande

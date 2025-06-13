@@ -12,8 +12,8 @@ const Sidebar = () => {
     { path: '/admin/employees', icon: User, label: 'Employees' },
     { path: '/admin/attendance', icon: Clock, label: 'Attendance' },
     { path: '/admin/facedetection', icon: Camera, label: 'Face Detection' },
-    { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
-  ];
+/*     { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
+ */  ];
 
   const isActive = (path) => location.pathname === path;
 

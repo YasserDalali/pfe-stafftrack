@@ -18,13 +18,13 @@ const fetchEmployeeAndAttendanceData = async () => {
       .select(`
         id,
         employee_id,
-        check_date,
+        checkdate,
         status,
         confidence_score,
         created_at,
         updated_at
       `)
-      .order('check_date', { ascending: false });
+      .order('checkdate', { ascending: false });
 
     if (employeeError) throw employeeError;
     if (attendanceError) throw attendanceError;
@@ -33,7 +33,7 @@ const fetchEmployeeAndAttendanceData = async () => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const recentAttendance = attendance.filter(record => 
-      new Date(record.check_date) >= thirtyDaysAgo
+      new Date(record.checkdate) >= thirtyDaysAgo
     );
 
     return { 
@@ -116,7 +116,7 @@ export const generateEnhancedReport = async () => {
 
     // Calculate some basic stats to guide the AI
     const totalEmployees = employees.length;
-    const uniqueAttendanceDays = [...new Set(attendance.map(a => a.check_date))].length;
+    const uniqueAttendanceDays = [...new Set(attendance.map(a => a.checkdate))].length;
     const expectedAttendanceRecords = totalEmployees * uniqueAttendanceDays;
     const attendanceRate = (attendance.length / expectedAttendanceRecords * 100).toFixed(2);
     
@@ -131,7 +131,7 @@ ANALYSIS PARAMETERS:
 - Today's Date: ${new Date().toISOString().split('T')[0]}
 - Total Employees: ${totalEmployees}
 - Attendance Rate: ~${attendanceRate}%
-- Data Period: ${attendance.length > 0 ? attendance[attendance.length-1].check_date : 'N/A'} to ${attendance.length > 0 ? attendance[0].check_date : 'N/A'}
+- Data Period: ${attendance.length > 0 ? attendance[attendance.length-1].checkdate : 'N/A'} to ${attendance.length > 0 ? attendance[0].checkdate : 'N/A'}
 
 REPORT REQUIREMENTS:
 1. Follow HR best practices and emphasize data-driven insights

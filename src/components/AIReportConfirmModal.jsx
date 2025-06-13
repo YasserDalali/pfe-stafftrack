@@ -1,9 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-const AIReportConfirmModal = ({ isOpen, onClose, onConfirm, reportsLeft, reportType = 'standard', setReportType }) => {
-    if (!isOpen) return null;
-
+const AIReportConfirmModal = ({ onClose, onConfirm, reportsLeft, reportType = 'standard', setReportType }) => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
             <motion.div
