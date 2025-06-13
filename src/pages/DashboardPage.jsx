@@ -2,10 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ReactApexChart from 'react-apexcharts';
 import { motion } from 'framer-motion';
 import AnimatedComponent from '../components/AnimatedComponent';
-import AIReportModal from '../components/AIReportModal';
-import AIReportConfirmModal from '../components/AIReportConfirmModal';
 import EnhancedReportModal from '../components/EnhancedReportModal';
-import { generateAIReport } from '../utils/ReportAIAnalyse';
 import { generateEnhancedReport } from '../utils/enhancedReportGenerator';
 import AttendanceRateOverTime from '../charts/AttendanceRateOverTime';
 import AverageLatenessOverTime from '../charts/AverageLatenessOverTime';
@@ -22,17 +19,12 @@ const MAX_DAILY_REPORTS = 10;
 const REPORTS_STORAGE_KEY = 'ai_reports_usage';
 
 const DashboardPage = () => {
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isEnhancedReportModalOpen, setIsEnhancedReportModalOpen] = useState(false);
-  const [reportData, setReportData] = useState(null);
   const [enhancedReportData, setEnhancedReportData] = useState(null);
   const [reportsLeft, setReportsLeft] = useState(MAX_DAILY_REPORTS);
-  const [isCachedData, setIsCachedData] = useState(false);
   const [attendance, setAttendance] = useState([]);
   const [period, setPeriod] = useState('week');
   const [loadingStats, setLoadingStats] = useState(true);
-  const [reportType, setReportType] = useState('standard'); // 'standard' or 'enhanced'
   const [isGeneratingEnhancedReport, setIsGeneratingEnhancedReport] = useState(false);
 
   useEffect(() => {
@@ -70,53 +62,21 @@ const DashboardPage = () => {
   };
 
   const handleGenerateReport = async () => {
-    setIsConfirmModalOpen(false);
-    console.log(`Generating ${reportType} report...`);
+    setIsEnhancedReportModalOpen(true);
+    setIsGeneratingEnhancedReport(true);
+    setEnhancedReportData(null);
     
-    if (reportType === 'enhanced') {
-      // Generate enhanced report
-      setIsEnhancedReportModalOpen(true);
-      setIsGeneratingEnhancedReport(true);
-      setEnhancedReportData(null);
-      
-      try {
-        console.log('Calling generateEnhancedReport API...');
-        const report = await generateEnhancedReport();
-        console.log('Enhanced report generation successful!', report);
-        setEnhancedReportData(report);
-        updateReportsUsage();
-      } catch (error) {
-        console.error('Error generating enhanced report:', error);
-        alert('Failed to generate enhanced report. Please try again later.');
-      } finally {
-        setIsGeneratingEnhancedReport(false);
-      }
-    } else {
-      // Generate standard report
-      setIsReportModalOpen(true);
-      setReportData(null);
-      setIsCachedData(false);
-
-      try {
-        console.log('Calling generateAIReport API...');
-        const startTime = Date.now();
-        const report = await generateAIReport();
-        const endTime = Date.now();
-
-        // If response time is very quick, it's likely cached data
-        const isCached = endTime - startTime < 500;
-        setIsCachedData(isCached);
-        console.log('Standard report generation successful!', { isCached, report });
-        setReportData(report);
-
-        // Only update usage if it's not cached data
-        if (!isCached) {
-          updateReportsUsage();
-        }
-      } catch (error) {
-        console.error('Error generating standard report:', error);
-        alert('Failed to generate standard report. Please try again later.');
-      }
+    try {
+      console.log('Calling generateEnhancedReport API...');
+      const report = await generateEnhancedReport();
+      console.log('Enhanced report generation successful!', report);
+      setEnhancedReportData(report);
+      updateReportsUsage();
+    } catch (error) {
+      console.error('Error generating enhanced report:', error);
+      alert('Failed to generate enhanced report. Please try again later.');
+    } finally {
+      setIsGeneratingEnhancedReport(false);
     }
   };
 
@@ -191,7 +151,7 @@ const DashboardPage = () => {
       {/* AI Report Card */}
       <AnimatedComponent delay={0.4}>
         <div
-          onClick={() => setIsConfirmModalOpen(true)}
+          onClick={() => handleGenerateReport()}
           className="bg-gradient-to-br from-purple-500/90 to-indigo-600/90 backdrop-blur-md rounded-2xl shadow-xl p-6 cursor-pointer transform transition-all duration-200 hover:scale-[1.01] hover:shadow-2xl mb-8 border border-white/10"
           style={{
             backdropFilter: 'blur(10px)',
@@ -202,14 +162,14 @@ const DashboardPage = () => {
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
-              setIsConfirmModalOpen(true);
+              handleGenerateReport();
             }
           }}
         >
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-white text-sm font-medium">
-                AI Insights
+                Enhanced HR Analytics
               </h3>
               <p className="text-2xl font-semibold text-white mt-2">
                 Generate Report
@@ -232,7 +192,7 @@ const DashboardPage = () => {
             </div>
           </div>
           <p className="text-white/80 text-sm mt-4">
-            {reportsLeft} reports remaining today. Click to generate AI-powered insights.
+            {reportsLeft} reports remaining today. Generate comprehensive HR insights with employee names and departmental analysis.
           </p>
         </div>
       </AnimatedComponent>
@@ -332,26 +292,6 @@ const DashboardPage = () => {
         ))}
       </div>
 
-      {/* Modals */}
-      {isConfirmModalOpen && (
-        <AIReportConfirmModal
-          onClose={() => setIsConfirmModalOpen(false)}
-          onConfirm={handleGenerateReport}
-          reportsLeft={reportsLeft}
-          setReportType={setReportType}
-          reportType={reportType}
-        />
-      )}
-
-      {isReportModalOpen && (
-        <AIReportModal
-          onClose={() => setIsReportModalOpen(false)}
-          reportData={reportData}
-          loading={!reportData}
-          isCachedData={isCachedData}
-        />
-      )}
-      
       {/* Enhanced Report Modal */}
       <EnhancedReportModal 
         isOpen={isEnhancedReportModalOpen}

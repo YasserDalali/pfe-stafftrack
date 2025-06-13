@@ -1,18 +1,19 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import sb from '../database/supabase-client';
 import { jsPDF } from "jspdf";
-import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 
 // Get employee and attendance data
 const fetchEmployeeAndAttendanceData = async () => {
   try {
+    console.log('🔄 Enhanced report: Fetching employee data...');
     // Fetch employees
     const { data: employees, error: employeeError } = await sb
       .from('employees')
       .select('*');
 
-    // Fetch attendance with more detailed info
+    console.log('🔄 Enhanced report: Fetching attendance data with employee names...');
+    // Fetch attendance with employee names using join
     const { data: attendance, error: attendanceError } = await sb
       .from('attendance')
       .select(`
@@ -21,24 +22,41 @@ const fetchEmployeeAndAttendanceData = async () => {
         checkdate,
         status,
         confidence_score,
-        created_at,
-        updated_at
+        employees(name, departement, position)
       `)
       .order('checkdate', { ascending: false });
 
-    if (employeeError) throw employeeError;
-    if (attendanceError) throw attendanceError;
+    if (employeeError) {
+      console.error('❌ Enhanced report: Employee query error:', employeeError);
+      throw employeeError;
+    }
+    if (attendanceError) {
+      console.error('❌ Enhanced report: Attendance query error:', attendanceError);
+      throw attendanceError;
+    }
+
+    console.log('✅ Enhanced report: Successfully fetched:', employees?.length || 0, 'employees and', attendance?.length || 0, 'attendance records');
+
+    // Transform attendance data to include employee names directly
+    const attendanceWithNames = attendance.map(record => ({
+      ...record,
+      employee_name: record.employees?.name || 'Unknown Employee',
+      employee_department: record.employees?.departement || 'Unknown Department',
+      employee_position: record.employees?.position || 'Unknown Position'
+    }));
 
     // Get last 30 days of data for trends
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const recentAttendance = attendance.filter(record => 
+    const recentAttendance = attendanceWithNames.filter(record => 
       new Date(record.checkdate) >= thirtyDaysAgo
     );
 
+    console.log('📊 Enhanced report: Recent attendance (30 days):', recentAttendance?.length || 0, 'records');
+
     return { 
       employees, 
-      attendance, 
+      attendance: attendanceWithNames, 
       recentAttendance 
     };
   } catch (error) {
@@ -133,11 +151,17 @@ ANALYSIS PARAMETERS:
 - Attendance Rate: ~${attendanceRate}%
 - Data Period: ${attendance.length > 0 ? attendance[attendance.length-1].checkdate : 'N/A'} to ${attendance.length > 0 ? attendance[0].checkdate : 'N/A'}
 
+CRITICAL INSTRUCTIONS:
+- ALWAYS use employee NAMES (not IDs) in all lists and recommendations
+- Each attendance record includes employee_name, employee_department, and employee_position
+- When mentioning employees, use their actual names like "John Smith" not employee IDs
+- Include department and position information where relevant
+
 REPORT REQUIREMENTS:
 1. Follow HR best practices and emphasize data-driven insights
 2. Focus on actionable recommendations that can improve attendance
 3. Identify trends, patterns, and anomalies in attendance data
-4. Highlight high-risk employees and departments
+4. Highlight high-risk employees and departments BY NAME
 5. Provide specific intervention strategies for different employee categories
 6. Include both quantitative metrics and qualitative insights
 7. Consider factors like time of year, day of week, and external factors
@@ -146,7 +170,7 @@ REPORT REQUIREMENTS:
 Return ONLY a valid JSON object with this exact structure (no markdown, no backticks, no json keyword):
 ${JSON.stringify(REPORT_SCHEMA, null, 2)}
 
-Keep your analysis concise yet thorough, with a professional tone suitable for HR executives.`;
+Keep your analysis concise yet thorough, with a professional tone suitable for HR executives. Remember: USE EMPLOYEE NAMES, NOT IDs in all output.`;
 
     // Generate the content
     const result = await model.generateContent(prompt);
@@ -180,7 +204,16 @@ Keep your analysis concise yet thorough, with a professional tone suitable for H
 // Generate PDF from report data
 export const generateReportPDF = async (reportData, includeCharts = true) => {
   try {
+    // Dynamic import to ensure autoTable is loaded
+    await import('jspdf-autotable');
+    
     const doc = new jsPDF();
+    
+    // Check if autoTable is available
+    if (typeof doc.autoTable !== 'function') {
+      console.warn('autoTable not available, generating simple PDF');
+      return generateSimplePDF(reportData);
+    }
     
     // Add company logo and header
     doc.setFontSize(22);
@@ -326,6 +359,110 @@ export const generateReportPDF = async (reportData, includeCharts = true) => {
     return doc;
   } catch (error) {
     console.error("Error generating PDF:", error);
+    console.log("Falling back to simple PDF generation");
+    return generateSimplePDF(reportData);
+  }
+};
+
+// Fallback simple PDF generation without tables
+const generateSimplePDF = (reportData) => {
+  try {
+    const doc = new jsPDF();
+    let yPos = 20;
+    
+    // Header
+    doc.setFontSize(20);
+    doc.setTextColor(44, 62, 80);
+    doc.text("HR Attendance Analysis Report", 105, yPos, { align: "center" });
+    yPos += 20;
+    
+    // Date
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    const dateText = `Generated on: ${new Date(reportData.reportMetadata.generatedDate).toLocaleString()}`;
+    doc.text(dateText, 105, yPos, { align: "center" });
+    yPos += 20;
+    
+    // Executive Summary
+    doc.setFontSize(16);
+    doc.setTextColor(44, 62, 80);
+    doc.text("Executive Summary", 14, yPos);
+    yPos += 10;
+    
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    const splitSummary = doc.splitTextToSize(reportData.executiveSummary, 180);
+    doc.text(splitSummary, 14, yPos);
+    yPos += splitSummary.length * 5 + 15;
+    
+    // Attendance Summary
+    doc.setFontSize(14);
+    doc.setTextColor(44, 62, 80);
+    doc.text("Attendance Summary", 14, yPos);
+    yPos += 10;
+    
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    doc.text(`Total Employees: ${reportData.attendanceSummary.totalEmployees}`, 14, yPos);
+    yPos += 6;
+    doc.text(`Average Daily Attendance: ${reportData.attendanceSummary.averageDailyAttendance}`, 14, yPos);
+    yPos += 6;
+    doc.text(`Attendance Rate: ${reportData.attendanceSummary.attendanceRate}%`, 14, yPos);
+    yPos += 6;
+    doc.text(`Lateness Rate: ${reportData.attendanceSummary.latenessRate}%`, 14, yPos);
+    yPos += 15;
+    
+    // Most Punctual Employees
+    doc.setFontSize(12);
+    doc.setTextColor(39, 174, 96);
+    doc.text("Most Punctual Employees", 14, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    reportData.employeeInsights.mostPunctual.forEach(emp => {
+      doc.text(`• ${emp}`, 20, yPos);
+      yPos += 5;
+    });
+    yPos += 10;
+    
+    // Frequently Late Employees
+    doc.setFontSize(12);
+    doc.setTextColor(231, 76, 60);
+    doc.text("Frequently Late Employees", 14, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    reportData.employeeInsights.frequentlyLate.forEach(emp => {
+      doc.text(`• ${emp}`, 20, yPos);
+      yPos += 5;
+    });
+    yPos += 10;
+    
+    // Add new page for recommendations if needed
+    if (yPos > 250) {
+      doc.addPage();
+      yPos = 20;
+    }
+    
+    // Recommendations
+    doc.setFontSize(14);
+    doc.setTextColor(44, 62, 80);
+    doc.text("Actionable Recommendations", 14, yPos);
+    yPos += 10;
+    
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    reportData.actionableRecommendations.policyAdjustments.forEach(rec => {
+      const splitRec = doc.splitTextToSize(`• ${rec}`, 180);
+      doc.text(splitRec, 20, yPos);
+      yPos += splitRec.length * 5 + 2;
+    });
+    
+    return doc;
+  } catch (error) {
+    console.error("Error generating simple PDF:", error);
     throw error;
   }
 };

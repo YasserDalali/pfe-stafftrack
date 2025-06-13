@@ -309,5 +309,5 @@ const prepareChartData = (chartType, period) => {
 - Fichiers sources :
   - `src/pages/DashboardPage.jsx`
   - `src/charts/` (dossier des composants graphiques)
-  - `src/components/AIReportModal.jsx`
-  - `src/utils/ReportAIAnalyse.js` 
+  - `src/components/EnhancedReportModal.jsx`
+  - `src/utils/enhancedReportGenerator.js` 
