@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
-import { ArrowDown, ArrowUp, ArrowUpDown, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Search, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AnimatedTableRow from './AnimatedTableRow';
 import WarningModal from './WarningModal';
@@ -17,6 +17,7 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
   const [editModal, setEditModal] = useState({ open: false, leave: null });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState(null);
+  const [dateFilter, setDateFilter] = useState({ startDate: '', endDate: '' });
 
   const handleDelete = async (id) => {
     setDeletingId(id);
@@ -33,7 +34,38 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
     }
   };
 
-  const data = React.useMemo(() => tableData, [tableData]);
+  // Filter data based on date range and global filter
+  const filteredData = React.useMemo(() => {
+    let filtered = tableData;
+    
+    // Apply date range filter
+    if (dateFilter.startDate || dateFilter.endDate) {
+      filtered = filtered.filter((leave) => {
+        const leaveStartDate = new Date(leave.start_date);
+        const leaveEndDate = new Date(leave.end_date);
+        const filterStartDate = dateFilter.startDate ? new Date(dateFilter.startDate) : null;
+        const filterEndDate = dateFilter.endDate ? new Date(dateFilter.endDate) : null;
+        
+        // Check if leave period overlaps with filter range
+        if (filterStartDate && filterEndDate) {
+          return (leaveStartDate <= filterEndDate && leaveEndDate >= filterStartDate);
+        } else if (filterStartDate) {
+          return leaveEndDate >= filterStartDate;
+        } else if (filterEndDate) {
+          return leaveStartDate <= filterEndDate;
+        }
+        return true;
+      });
+    }
+    
+    return filtered;
+  }, [tableData, dateFilter]);
+
+  const data = React.useMemo(() => filteredData, [filteredData]);
+
+  const clearDateFilter = () => {
+    setDateFilter({ startDate: '', endDate: '' });
+  };
 
   const columns = React.useMemo(
     () => [
@@ -269,8 +301,9 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
         <div className="flex flex-col">
           <div className="-m-1.5 overflow-x-auto">
             <div className="p-1.5 min-w-full inline-block align-middle">
-              {/* Search bar */}
-              <div className="mb-4">
+              {/* Search and Date Filter bar */}
+              <div className="mb-4 space-y-4">
+                {/* Global Search */}
                 <div className="relative">
                   <input
                     type="text"
@@ -280,6 +313,48 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
                     className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-neutral-600 rounded-md dark:bg-neutral-700 dark:text-white"
                   />
                   <Search size={16} className="absolute left-3 top-3 text-gray-400" />
+                </div>
+                
+                {/* Date Range Filter */}
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">
+                      Filter by Date Range
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="date"
+                          value={dateFilter.startDate}
+                          onChange={(e) => setDateFilter(prev => ({ ...prev, startDate: e.target.value }))}
+                          className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-neutral-600 rounded-md dark:bg-neutral-700 dark:text-white text-sm"
+                          placeholder="Start Date"
+                        />
+                        <Calendar size={16} className="absolute left-3 top-3 text-gray-400" />
+                      </div>
+                      <span className="text-gray-500 dark:text-neutral-400">to</span>
+                      <div className="relative flex-1">
+                        <input
+                          type="date"
+                          value={dateFilter.endDate}
+                          onChange={(e) => setDateFilter(prev => ({ ...prev, endDate: e.target.value }))}
+                          className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-neutral-600 rounded-md dark:bg-neutral-700 dark:text-white text-sm"
+                          placeholder="End Date"
+                        />
+                        <Calendar size={16} className="absolute left-3 top-3 text-gray-400" />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Clear Date Filter Button */}
+                  {(dateFilter.startDate || dateFilter.endDate) && (
+                    <button
+                      onClick={clearDateFilter}
+                      className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-neutral-400 hover:text-gray-800 dark:hover:text-neutral-200 border border-gray-300 dark:border-neutral-600 rounded-md hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors duration-200"
+                    >
+                      Clear Filter
+                    </button>
+                  )}
                 </div>
               </div>
 
