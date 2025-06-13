@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
-import { ArrowDown, ArrowUp, ArrowUpDown, Search, Calendar } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Search, Calendar, FileText, Download } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AnimatedTableRow from './AnimatedTableRow';
 import WarningModal from './WarningModal';
@@ -89,12 +89,15 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
         accessor: 'type',
         Cell: ({ value }) => (
           <span className={`px-2 py-1 rounded-full text-sm font-medium
-            ${value === 'Sick Leave' ? 'bg-red-100 text-red-700' :
-              value === 'Vacation' ? 'bg-blue-100 text-blue-700' :
-                value === 'Personal' ? 'bg-purple-100 text-purple-700' :
+            ${value === 'Sick Leave' || value === 'sick' ? 'bg-red-100 text-red-700' :
+              value === 'Vacation' || value === 'vacation' ? 'bg-blue-100 text-blue-700' :
+                value === 'Personal' || value === 'personal' ? 'bg-purple-100 text-purple-700' :
                   'bg-gray-100 text-gray-700'}`
           }>
-            {value}
+            {value === 'sick' ? 'Sick Leave' : 
+             value === 'vacation' ? 'Vacation' :
+             value === 'personal' ? 'Personal' :
+             value}
           </span>
         ),
       },
@@ -110,6 +113,38 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
         Header: 'Duration',
         accessor: 'duration',
         Cell: ({ value }) => `${value} days`,
+      },
+      {
+        Header: 'Medical Doc',
+        accessor: 'medical_document_url',
+        Cell: ({ value, row }) => {
+          const leaveType = row.original.type;
+          if ((leaveType === 'sick' || leaveType === 'Sick Leave') && value) {
+            return (
+              <a
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors duration-200"
+                title="View Medical Document"
+              >
+                <FileText size={12} className="mr-1" />
+                View
+              </a>
+            );
+          } else if (leaveType === 'sick' || leaveType === 'Sick Leave') {
+            return (
+              <span className="text-xs text-red-500 font-medium">
+                Missing
+              </span>
+            );
+          }
+          return (
+            <span className="text-xs text-gray-400">
+              N/A
+            </span>
+          );
+        },
       },
       {
         Header: 'Status',
@@ -135,16 +170,16 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
             }}
             disabled={statusUpdatingId === row.original.id}
             className={`px-3 py-1 rounded-md text-sm font-medium border-2 cursor-pointer
-              ${value === 'Approved' ? 'bg-green-100 text-green-700 border-green-200' :
-                value === 'Pending' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                  value === 'Rejected' ? 'bg-red-100 text-red-700 border-red-200' :
+              ${value === 'Approved' || value === 'approved' ? 'bg-green-100 text-green-700 border-green-200' :
+                value === 'Pending' || value === 'pending' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                  value === 'Rejected' || value === 'rejected' ? 'bg-red-100 text-red-700 border-red-200' :
                     'bg-gray-100 text-gray-700 border-gray-200'}
               ${statusUpdatingId === row.original.id ? 'opacity-50' : ''}`
             }
           >
-            <option value="Pending" className="bg-white text-yellow-700">Pending</option>
-            <option value="Approved" className="bg-white text-green-700">Approved</option>
-            <option value="Rejected" className="bg-white text-red-700">Rejected</option>
+            <option value="pending" className="bg-white text-yellow-700">Pending</option>
+            <option value="approved" className="bg-white text-green-700">Approved</option>
+            <option value="rejected" className="bg-white text-red-700">Rejected</option>
           </select>
         ),
       },
@@ -280,12 +315,32 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
                   const emp = employees.find(e => e.id === viewModal.leave.employee_id);
                   return emp ? emp.name : viewModal.leave.employee_id;
                 })()}</div>
-                <div><b>Type:</b> {viewModal.leave.type}</div>
+                <div><b>Type:</b> {viewModal.leave.type === 'sick' ? 'Sick Leave' : 
+                                   viewModal.leave.type === 'vacation' ? 'Vacation' :
+                                   viewModal.leave.type === 'personal' ? 'Personal' :
+                                   viewModal.leave.type}</div>
                 <div><b>Status:</b> {viewModal.leave.status}</div>
                 <div><b>Start Date:</b> {viewModal.leave.start_date}</div>
                 <div><b>End Date:</b> {viewModal.leave.end_date}</div>
                 <div><b>Duration:</b> {viewModal.leave.duration} days</div>
                 <div><b>Reason:</b> {viewModal.leave.reason}</div>
+                {(viewModal.leave.type === 'sick' || viewModal.leave.type === 'Sick Leave') && (
+                  <div>
+                    <b>Medical Document:</b> {viewModal.leave.medical_document_url ? (
+                      <a
+                        href={viewModal.leave.medical_document_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center ml-2 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors duration-200"
+                      >
+                        <Download size={12} className="mr-1" />
+                        Download
+                      </a>
+                    ) : (
+                      <span className="text-red-500 ml-2 text-sm">Not provided</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="mt-6 flex justify-end">
                 <button
