@@ -156,17 +156,29 @@ const LeaveManagementTable = ({ leaveData: initialLeaveData = [], employees = []
               const newStatus = e.target.value;
               const leaveId = row.original.id;
               const prevStatus = value;
+              
               setStatusUpdatingId(leaveId);
               setDeleteError(null);
+              
               // Optimistically update UI
               setTableData((prev) => prev.map(l => l.id === leaveId ? { ...l, status: newStatus } : l));
-              const { error } = await supabase.from('leaves').update({ status: newStatus }).eq('id', leaveId);
-              if (error) {
+              
+              try {
+                // Update leave status - the database trigger will handle balance updates automatically
+                const { error } = await supabase
+                  .from('leaves')
+                  .update({ status: newStatus })
+                  .eq('id', leaveId);
+                
+                if (error) throw error;
+                
+              } catch (err) {
                 // Revert UI and show error
                 setTableData((prev) => prev.map(l => l.id === leaveId ? { ...l, status: prevStatus } : l));
-                setDeleteError('Failed to update status. ' + (error.message || ''));
+                setDeleteError('Failed to update status. ' + (err.message || ''));
+              } finally {
+                setStatusUpdatingId(null);
               }
-              setStatusUpdatingId(null);
             }}
             disabled={statusUpdatingId === row.original.id}
             className={`px-3 py-1 rounded-md text-sm font-medium border-2 cursor-pointer
