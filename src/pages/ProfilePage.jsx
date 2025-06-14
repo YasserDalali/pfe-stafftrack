@@ -214,7 +214,7 @@ const ProfilePage = () => {
       </AnimatedComponent>
 
       {/* Performance Metrics */}
-      <AnimatedComponent delay={0.5}>
+      {/* <AnimatedComponent delay={0.5}>
         <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-lg p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Performance Metrics
@@ -252,7 +252,7 @@ const ProfilePage = () => {
             </div>
           </div>
         </div>
-      </AnimatedComponent>
+      </AnimatedComponent> */}
     </motion.div>
   );
 };
